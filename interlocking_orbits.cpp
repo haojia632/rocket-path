@@ -385,10 +385,10 @@ void EnableOpenGL(HWND hWnd, HDC &hDC, HGLRC &hRC)
 	glEnable(GL_COLOR_MATERIAL);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_LINE_SMOOTH);
-	glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE);
-	glEnable(GL_POLYGON_SMOOTH);
-	glHint(GL_POLYGON_SMOOTH_HINT, GL_DONT_CARE);
+//	glEnable(GL_LINE_SMOOTH);
+//	glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE);
+//	glEnable(GL_POLYGON_SMOOTH);
+//	glHint(GL_POLYGON_SMOOTH_HINT, GL_DONT_CARE);
 
 	// Generate a planet display list.
 	g_disc_list = glGenLists(1);
