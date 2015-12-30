@@ -1,19 +1,18 @@
 #include <windows.h>
-#include <math.h>
+#include <gl/gl.h>
+#include <gl/glu.h>
 
+#undef min
+#undef max
+
+#include <algorithm>
 #include <string>
 #include <fstream>
 #include <list>
 #include <limits>
 #include <vector>
 
-#include <gl/gl.h>
-#include <gl/glu.h>
-
 #include "vec.h"
-
-#undef min
-#undef max
 
 struct tOrbitElements
 {
