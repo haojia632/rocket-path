@@ -1,6 +1,7 @@
 *.opensdf
 *.sdf
 *.suo
+*.VC.opendb
 Debug/
 Release/
 planets.txt
