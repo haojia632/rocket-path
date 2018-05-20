@@ -36,6 +36,8 @@ const double pi = 3.1415926535897932384626433832795;
 
 const double discRadius = 10.0;
 
+const double accelerationLimit = 100.0;
+
 //----------------------------------------------------------------------------
 
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -324,8 +326,8 @@ void init()
 
 	g_trajectory.segmentDuration.clear();
 	g_trajectory.segmentDuration.reserve(9);
-	g_trajectory.segmentDuration.push_back(2);
-	g_trajectory.segmentDuration.push_back(1);
+	g_trajectory.segmentDuration.push_back(4);
+	g_trajectory.segmentDuration.push_back(4);
 
 	// Nothing selected, initially
 
@@ -388,7 +390,7 @@ static void plotAcceleration(const Trajectory & traj)
 		aMax = std::max(aMax, a1.len());
 	}
 
-	aMax *= 2.0;
+	aMax = std::max(aMax, accelerationLimit);
 
 	glColor3d(0.2, 0.2, 0.2);
 	glBegin(GL_LINE_LOOP);
@@ -399,9 +401,6 @@ static void plotAcceleration(const Trajectory & traj)
 	glEnd();
 
 	glBegin(GL_LINES);
-
-	glVertex2d(0, 0.5);
-	glVertex2d(1, 0.5);
 
 	double u0 = 0;
 
@@ -415,52 +414,13 @@ static void plotAcceleration(const Trajectory & traj)
 		glVertex2d(u0, 1);
 	}
 
-	u0 = 0;
-	glColor3d(1, 0, 0);
-	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
 	{
-		dvec2 x0 = traj.node[i].pos;
-		dvec2 x1 = traj.node[i + 1].pos;
-		dvec2 v0 = traj.node[i].vel;
-		dvec2 v1 = traj.node[i + 1].vel;
-		double h = traj.segmentDuration[i];
+		glColor3d(0.5, 0.1, 0.1);
 
-		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
-		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
+		double y = accelerationLimit / aMax;
 
-		double u1 = u0 + h / tTotal;
-
-		double y0 = a0[0] / aMax + 0.5;
-		double y1 = a1[0] / aMax + 0.5;
-
-		glVertex2d(u0, y0);
-		glVertex2d(u1, y1);
-
-		u0 = u1;
-	}
-
-	u0 = 0;
-	glColor3d(0, 1, 0);
-	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
-	{
-		dvec2 x0 = traj.node[i].pos;
-		dvec2 x1 = traj.node[i + 1].pos;
-		dvec2 v0 = traj.node[i].vel;
-		dvec2 v1 = traj.node[i + 1].vel;
-		double h = traj.segmentDuration[i];
-
-		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
-		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
-
-		double u1 = u0 + h / tTotal;
-
-		double y0 = a0[1] / aMax + 0.5;
-		double y1 = a1[1] / aMax + 0.5;
-
-		glVertex2d(u0, y0);
-		glVertex2d(u1, y1);
-
-		u0 = u1;
+		glVertex2d(0, y);
+		glVertex2d(1, y);
 	}
 
 	glEnd();
@@ -489,12 +449,10 @@ static void plotAcceleration(const Trajectory & traj)
 			dvec2 a = a0 + (a1 - a0) * t;
 			double u = u0 + (u1 - u0) * t;
 
-			double y = a.len() / aMax + 0.5;
-
-			glVertex2d(u, y);
+			glVertex2d(u, a.len() / aMax);
 		}
 
-		glVertex2d(u1, a1.len() / aMax + 0.5);
+		glVertex2d(u1, a1.len() / aMax);
 
 		glEnd();
 
