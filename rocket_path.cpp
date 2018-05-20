@@ -319,12 +319,12 @@ void init()
 
 	g_trajectory.node.reserve(10);
 	g_trajectory.node.push_back({ dvec2(0, -200), dvec2(0, 0) });
-	g_trajectory.node.push_back({ dvec2(0, 0), dvec2(0, 0) });
+	g_trajectory.node.push_back({ dvec2(0, 0), dvec2(100, 100) });
 	g_trajectory.node.push_back({ dvec2(100, 0), dvec2(0, 0) });
 
 	g_trajectory.segmentDuration.clear();
 	g_trajectory.segmentDuration.reserve(9);
-	g_trajectory.segmentDuration.push_back(1);
+	g_trajectory.segmentDuration.push_back(2);
 	g_trajectory.segmentDuration.push_back(1);
 
 	// Nothing selected, initially
@@ -365,21 +365,21 @@ inline double sqr(double x)
 	return x * x;
 }
 
-static void plotAcceleration()
+static void plotAcceleration(const Trajectory & traj)
 {
 	double tTotal = 0;
-	for (double t : g_trajectory.segmentDuration)
+	for (double t : traj.segmentDuration)
 		tTotal += t;
 
 	double aMax = 1;
 
-	for (size_t i = 0; i < g_trajectory.segmentDuration.size(); ++i)
+	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
 	{
-		dvec2 x0 = g_trajectory.node[i].pos;
-		dvec2 x1 = g_trajectory.node[i + 1].pos;
-		dvec2 v0 = g_trajectory.node[i].vel;
-		dvec2 v1 = g_trajectory.node[i + 1].vel;
-		double h = g_trajectory.segmentDuration[i];
+		dvec2 x0 = traj.node[i].pos;
+		dvec2 x1 = traj.node[i + 1].pos;
+		dvec2 v0 = traj.node[i].vel;
+		dvec2 v1 = traj.node[i + 1].vel;
+		double h = traj.segmentDuration[i];
 
 		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
 		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
@@ -405,9 +405,9 @@ static void plotAcceleration()
 
 	double u0 = 0;
 
-	for (size_t i = 0; i < g_trajectory.segmentDuration.size() - 1; ++i)
+	for (size_t i = 0; i < traj.segmentDuration.size() - 1; ++i)
 	{
-		double h = g_trajectory.segmentDuration[i];
+		double h = traj.segmentDuration[i];
 
 		u0 += h / tTotal;
 
@@ -417,13 +417,13 @@ static void plotAcceleration()
 
 	u0 = 0;
 	glColor3d(1, 0, 0);
-	for (size_t i = 0; i < g_trajectory.segmentDuration.size(); ++i)
+	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
 	{
-		dvec2 x0 = g_trajectory.node[i].pos;
-		dvec2 x1 = g_trajectory.node[i + 1].pos;
-		dvec2 v0 = g_trajectory.node[i].vel;
-		dvec2 v1 = g_trajectory.node[i + 1].vel;
-		double h = g_trajectory.segmentDuration[i];
+		dvec2 x0 = traj.node[i].pos;
+		dvec2 x1 = traj.node[i + 1].pos;
+		dvec2 v0 = traj.node[i].vel;
+		dvec2 v1 = traj.node[i + 1].vel;
+		double h = traj.segmentDuration[i];
 
 		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
 		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
@@ -441,13 +441,13 @@ static void plotAcceleration()
 
 	u0 = 0;
 	glColor3d(0, 1, 0);
-	for (size_t i = 0; i < g_trajectory.segmentDuration.size(); ++i)
+	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
 	{
-		dvec2 x0 = g_trajectory.node[i].pos;
-		dvec2 x1 = g_trajectory.node[i + 1].pos;
-		dvec2 v0 = g_trajectory.node[i].vel;
-		dvec2 v1 = g_trajectory.node[i + 1].vel;
-		double h = g_trajectory.segmentDuration[i];
+		dvec2 x0 = traj.node[i].pos;
+		dvec2 x1 = traj.node[i + 1].pos;
+		dvec2 v0 = traj.node[i].vel;
+		dvec2 v1 = traj.node[i + 1].vel;
+		double h = traj.segmentDuration[i];
 
 		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
 		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
@@ -467,13 +467,13 @@ static void plotAcceleration()
 
 	glColor3d(1, 1, 0);
 	u0 = 0;
-	for (size_t i = 0; i < g_trajectory.segmentDuration.size(); ++i)
+	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
 	{
-		dvec2 x0 = g_trajectory.node[i].pos;
-		dvec2 x1 = g_trajectory.node[i + 1].pos;
-		dvec2 v0 = g_trajectory.node[i].vel;
-		dvec2 v1 = g_trajectory.node[i + 1].vel;
-		double h = g_trajectory.segmentDuration[i];
+		dvec2 x0 = traj.node[i].pos;
+		dvec2 x1 = traj.node[i + 1].pos;
+		dvec2 v0 = traj.node[i].vel;
+		dvec2 v1 = traj.node[i + 1].vel;
+		double h = traj.segmentDuration[i];
 
 		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
 		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
@@ -502,25 +502,13 @@ static void plotAcceleration()
 	}
 }
 
-void drawScene()
+static void plotTrajectory(const Trajectory & traj)
 {
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	double m[16];
-
-	glMatrixMode(GL_PROJECTION);
-	projectionMatrix(m);
-	glLoadMatrixd(m);
-
-	glMatrixMode(GL_MODELVIEW);
-	modelviewMatrix(m);
-	glLoadMatrixd(m);
-
 	// Draw curve nodes
 
-	for (size_t i = 0; i < g_trajectory.node.size(); ++i)
+	for (size_t i = 0; i < traj.node.size(); ++i)
 	{
-		const NodeState & s = g_trajectory.node[i];
+		const NodeState & s = traj.node[i];
 
 		if (i == g_highlightedNode)
 			glColor3d(1, 1, 1);
@@ -537,13 +525,55 @@ void drawScene()
 	// Draw the curve
 
 	glColor3d(1, 1, 1);
-	glBegin(GL_LINES);
-	for (size_t i = 1; i < g_trajectory.node.size(); ++i)
+	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
 	{
-		glVertex2dv(&g_trajectory.node[i - 1].pos[0]);
-		glVertex2dv(&g_trajectory.node[i].pos[0]);
+		double h = traj.segmentDuration[i];
+		dvec2 x0 = traj.node[i].pos;
+		dvec2 x1 = traj.node[i + 1].pos;
+		dvec2 v0 = traj.node[i].vel;
+		dvec2 v1 = traj.node[i + 1].vel;
+
+		dvec2 acc0 = (x1 - x0) * (6.0 / sqr(h)) - (v0 * 4.0 + v1 * 2.0) / h;
+		dvec2 jrk0 = (v1 - v0) * (2.0 / sqr(h)) - acc0 * (2.0 / h);
+
+		// Evaluate the segment position
+
+		glBegin(GL_LINE_STRIP);
+
+		glVertex2dv(&x0[0]);
+
+		for (size_t j = 1; j < 16; ++j)
+		{
+			double t = h * double(j) / 16.0;
+
+			dvec2 pos = x0 + (v0 + (acc0 + jrk0 * (t / 3.0f)) * (t / 2.0f)) * t;
+
+			glVertex2dv(&pos[0]);
+		}
+
+		glVertex2dv(&x1[0]);
+
+		glEnd();
 	}
-	glEnd();
+}
+
+void drawScene()
+{
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	// Plot trajectory
+
+	double m[16];
+
+	glMatrixMode(GL_PROJECTION);
+	projectionMatrix(m);
+	glLoadMatrixd(m);
+
+	glMatrixMode(GL_MODELVIEW);
+	modelviewMatrix(m);
+	glLoadMatrixd(m);
+
+	plotTrajectory(g_trajectory);
 
 	// Plot acceleration graph
 
@@ -555,7 +585,7 @@ void drawScene()
 	glTranslated(-0.9, 0.4, 0);
 	glScaled(1.8, 0.5, 1.0);
 
-	plotAcceleration();
+	plotAcceleration(g_trajectory);
 
 	SwapBuffers(g_hDC);
 }
