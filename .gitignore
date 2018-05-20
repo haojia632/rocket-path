@@ -1,6 +1,7 @@
 *.opensdf
 *.sdf
 *.suo
+*.VC.db
 *.VC.opendb
 Debug/
 Release/
