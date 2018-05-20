@@ -11,7 +11,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="interlocking_orbits.cpp">
+    <ClCompile Include="rocket_path.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

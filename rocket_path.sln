@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Express 2012 for Windows Desktop
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "interlocking_orbits", "interlocking_orbits.vcxproj", "{CB376E91-F754-46C1-9184-4DB5C01B1AD9}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rocket_path", "rocket_path.vcxproj", "{CB376E91-F754-46C1-9184-4DB5C01B1AD9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
