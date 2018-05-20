@@ -17,6 +17,12 @@ struct NodeState
 	dvec2 vel;
 };
 
+struct Trajectory
+{
+	std::vector<NodeState> node;
+	std::vector<double> segmentDuration;
+};
+
 //----------------------------------------------------------------------------
 
 const int kInitWindowSizeX = 800;
@@ -27,6 +33,8 @@ const char * windowClassName = "Rocket Path";
 const char * windowName = "Rocket Path";
 
 const double pi = 3.1415926535897932384626433832795;
+
+const double discRadius = 10.0;
 
 //----------------------------------------------------------------------------
 
@@ -53,13 +61,12 @@ static int g_size_x = 1;
 static int g_size_y = 1;
 static int g_mouse_x = 0;
 static int g_mouse_y = 0;
-static double g_au_per_pixel = 0.1;
 static size_t g_highlightedNode = 0;
 static size_t g_selectedNode = 0;
 static dvec2 g_posOffset(0, 0);
 static unsigned g_disc_list = 0;
 
-static std::vector<NodeState> g_nodes;
+static Trajectory g_trajectory;
 
 //----------------------------------------------------------------------------
 
@@ -183,7 +190,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_MOUSEMOVE:
 		g_mouse_x = int(short(LOWORD(lParam)));
 		g_mouse_y = int(short(HIWORD(lParam)));
-		if (g_selectedNode < g_nodes.size())
+		if (g_selectedNode < g_trajectory.node.size())
 			updateMouseDrag(g_mouse_x, g_mouse_y);
 		else
 			updateHighlight(g_mouse_x, g_mouse_y);
@@ -308,16 +315,22 @@ void DisableOpenGL(HWND hWnd, HDC hDC, HGLRC hRC)
 
 void init()
 {
-	g_nodes.clear();
-	g_nodes.reserve(10);
-	g_nodes.push_back({ dvec2(-10, 0), dvec2(0, 0) });
-	g_nodes.push_back({ dvec2(0, 0), dvec2(1, 0) });
-	g_nodes.push_back({ dvec2(10, 0), dvec2(0, 0) });
+	g_trajectory.node.clear();
+
+	g_trajectory.node.reserve(10);
+	g_trajectory.node.push_back({ dvec2(0, -200), dvec2(0, 0) });
+	g_trajectory.node.push_back({ dvec2(0, 0), dvec2(0, 0) });
+	g_trajectory.node.push_back({ dvec2(100, 0), dvec2(0, 0) });
+
+	g_trajectory.segmentDuration.clear();
+	g_trajectory.segmentDuration.reserve(9);
+	g_trajectory.segmentDuration.push_back(1);
+	g_trajectory.segmentDuration.push_back(1);
 
 	// Nothing selected, initially
 
-	g_highlightedNode = g_nodes.size();
-	g_selectedNode = g_nodes.size();
+	g_highlightedNode = g_trajectory.node.size();
+	g_selectedNode = g_trajectory.node.size();
 }
 
 static void drawDisc()
@@ -327,8 +340,8 @@ static void drawDisc()
 
 static void projectionMatrix(double m[16])
 {
-	double rx = g_size_x * g_au_per_pixel;
-	double ry = g_size_y * g_au_per_pixel;
+	double rx = g_size_x;
+	double ry = g_size_y;
 	double rz = 500;
 
 	memset(m, 0, 16*sizeof(double));
@@ -347,6 +360,148 @@ static void modelviewMatrix(double m[16])
 	m[15] = 1;
 }
 
+inline double sqr(double x)
+{
+	return x * x;
+}
+
+static void plotAcceleration()
+{
+	double tTotal = 0;
+	for (double t : g_trajectory.segmentDuration)
+		tTotal += t;
+
+	double aMax = 1;
+
+	for (size_t i = 0; i < g_trajectory.segmentDuration.size(); ++i)
+	{
+		dvec2 x0 = g_trajectory.node[i].pos;
+		dvec2 x1 = g_trajectory.node[i + 1].pos;
+		dvec2 v0 = g_trajectory.node[i].vel;
+		dvec2 v1 = g_trajectory.node[i + 1].vel;
+		double h = g_trajectory.segmentDuration[i];
+
+		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
+		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
+
+		aMax = std::max(aMax, a0.len());
+		aMax = std::max(aMax, a1.len());
+	}
+
+	aMax *= 2.0;
+
+	glColor3d(0.2, 0.2, 0.2);
+	glBegin(GL_LINE_LOOP);
+	glVertex2d(0, 0);
+	glVertex2d(1, 0);
+	glVertex2d(1, 1);
+	glVertex2d(0, 1);
+	glEnd();
+
+	glBegin(GL_LINES);
+
+	glVertex2d(0, 0.5);
+	glVertex2d(1, 0.5);
+
+	double u0 = 0;
+
+	for (size_t i = 0; i < g_trajectory.segmentDuration.size() - 1; ++i)
+	{
+		double h = g_trajectory.segmentDuration[i];
+
+		u0 += h / tTotal;
+
+		glVertex2d(u0, 0);
+		glVertex2d(u0, 1);
+	}
+
+	u0 = 0;
+	glColor3d(1, 0, 0);
+	for (size_t i = 0; i < g_trajectory.segmentDuration.size(); ++i)
+	{
+		dvec2 x0 = g_trajectory.node[i].pos;
+		dvec2 x1 = g_trajectory.node[i + 1].pos;
+		dvec2 v0 = g_trajectory.node[i].vel;
+		dvec2 v1 = g_trajectory.node[i + 1].vel;
+		double h = g_trajectory.segmentDuration[i];
+
+		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
+		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
+
+		double u1 = u0 + h / tTotal;
+
+		double y0 = a0[0] / aMax + 0.5;
+		double y1 = a1[0] / aMax + 0.5;
+
+		glVertex2d(u0, y0);
+		glVertex2d(u1, y1);
+
+		u0 = u1;
+	}
+
+	u0 = 0;
+	glColor3d(0, 1, 0);
+	for (size_t i = 0; i < g_trajectory.segmentDuration.size(); ++i)
+	{
+		dvec2 x0 = g_trajectory.node[i].pos;
+		dvec2 x1 = g_trajectory.node[i + 1].pos;
+		dvec2 v0 = g_trajectory.node[i].vel;
+		dvec2 v1 = g_trajectory.node[i + 1].vel;
+		double h = g_trajectory.segmentDuration[i];
+
+		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
+		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
+
+		double u1 = u0 + h / tTotal;
+
+		double y0 = a0[1] / aMax + 0.5;
+		double y1 = a1[1] / aMax + 0.5;
+
+		glVertex2d(u0, y0);
+		glVertex2d(u1, y1);
+
+		u0 = u1;
+	}
+
+	glEnd();
+
+	glColor3d(1, 1, 0);
+	u0 = 0;
+	for (size_t i = 0; i < g_trajectory.segmentDuration.size(); ++i)
+	{
+		dvec2 x0 = g_trajectory.node[i].pos;
+		dvec2 x1 = g_trajectory.node[i + 1].pos;
+		dvec2 v0 = g_trajectory.node[i].vel;
+		dvec2 v1 = g_trajectory.node[i + 1].vel;
+		double h = g_trajectory.segmentDuration[i];
+
+		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
+		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
+
+		double u1 = u0 + h / tTotal;
+
+		glBegin(GL_LINE_STRIP);
+
+		for (size_t j = 0; j < 16; ++j)
+		{
+			double t = double(j) / 16.0;
+
+			dvec2 a = a0 + (a1 - a0) * t;
+			double u = u0 + (u1 - u0) * t;
+
+			double y = a.len() / aMax + 0.5;
+
+			glVertex2d(u, y);
+		}
+
+		glVertex2d(u1, a1.len() / aMax + 0.5);
+
+		glEnd();
+
+		u0 = u1;
+	}
+}
+
 void drawScene()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -363,19 +518,18 @@ void drawScene()
 
 	// Draw curve nodes
 
-	for (size_t i = 0; i < g_nodes.size(); ++i)
+	for (size_t i = 0; i < g_trajectory.node.size(); ++i)
 	{
-		const NodeState & s = g_nodes[i];
+		const NodeState & s = g_trajectory.node[i];
 
 		if (i == g_highlightedNode)
 			glColor3d(1, 1, 1);
 		else
 			glColor3d(0.65, 0.65, 0.65);
 
-		const double r = 1.0;
 		glPushMatrix();
 		glTranslated(s.pos[0], s.pos[1], 0.0);
-		glScaled(r, r, 1.0);
+		glScaled(discRadius, discRadius, 1.0);
 		drawDisc();
 		glPopMatrix();
 	}
@@ -384,12 +538,24 @@ void drawScene()
 
 	glColor3d(1, 1, 1);
 	glBegin(GL_LINES);
-	for (size_t i = 1; i < g_nodes.size(); ++i)
+	for (size_t i = 1; i < g_trajectory.node.size(); ++i)
 	{
-		glVertex2dv(&g_nodes[i - 1].pos[0]);
-		glVertex2dv(&g_nodes[i].pos[0]);
+		glVertex2dv(&g_trajectory.node[i - 1].pos[0]);
+		glVertex2dv(&g_trajectory.node[i].pos[0]);
 	}
 	glEnd();
+
+	// Plot acceleration graph
+
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glTranslated(-0.9, 0.4, 0);
+	glScaled(1.8, 0.5, 1.0);
+
+	plotAcceleration();
 
 	SwapBuffers(g_hDC);
 }
@@ -398,9 +564,9 @@ static void beginMouseDrag(HWND hWnd, int mouseX, int mouseY)
 {
 	g_selectedNode = g_highlightedNode;
 
-	if (g_selectedNode < g_nodes.size())
+	if (g_selectedNode < g_trajectory.node.size())
 	{
-		g_posOffset = g_nodes[g_selectedNode].pos - posMouseWorld(mouseX, mouseY);
+		g_posOffset = g_trajectory.node[g_selectedNode].pos - posMouseWorld(mouseX, mouseY);
 	}
 
 	SetCapture(hWnd);
@@ -408,7 +574,7 @@ static void beginMouseDrag(HWND hWnd, int mouseX, int mouseY)
 
 static void endMouseDrag()
 {
-	g_selectedNode = g_nodes.size();
+	g_selectedNode = g_trajectory.node.size();
 
 	ReleaseCapture();
 	updateHighlight(g_mouse_x, g_mouse_y);
@@ -431,22 +597,21 @@ static dvec2 posMouseWorld(int mouseX, int mouseY)
 
 static void updateMouseDrag(int mouseX, int mouseY)
 {
-	g_nodes[g_selectedNode].pos = g_posOffset + posMouseWorld(mouseX, mouseY);
+	g_trajectory.node[g_selectedNode].pos = g_posOffset + posMouseWorld(mouseX, mouseY);
 }
 
 static size_t closestNode(int mouse_x, int mouse_y)
 {
 	dvec2 posMouse = posMouseWorld(mouse_x, mouse_y);
 
-	const double r = 1.0;
-	const double sqR = r*r;
+	const double sqR = discRadius*discRadius;
 
-	size_t iClosest = g_nodes.size();
+	size_t iClosest = g_trajectory.node.size();
 	double closestSqDist = std::numeric_limits<double>::infinity();
-	for (size_t i = 0; i < g_nodes.size(); ++i)
+	for (size_t i = 0; i < g_trajectory.node.size(); ++i)
 	{
-		double sqDist = (g_nodes[i].pos - posMouse).sqlen();
-		if (sqDist < sqR && (iClosest >= g_nodes.size() || sqDist < closestSqDist))
+		double sqDist = (g_trajectory.node[i].pos - posMouse).sqlen();
+		if (sqDist < sqR && (iClosest >= g_trajectory.node.size() || sqDist < closestSqDist))
 		{
 			iClosest = i;
 			closestSqDist = sqDist;
