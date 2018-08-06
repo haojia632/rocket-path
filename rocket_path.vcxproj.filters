@@ -16,7 +16,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\libs\vec\vec.h">
+    <ClInclude Include="libs\vec\vec.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
