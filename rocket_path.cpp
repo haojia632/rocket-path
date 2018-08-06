@@ -54,6 +54,18 @@ static void updateHighlight(int mouseX, int mouseY);
 
 static void repaint();
 
+static void plotTrajectory(const Trajectory &);
+static void plotAccelerations(const Trajectory &);
+static void descendObjective(Trajectory &);
+static void descendObjectiveConstrained(Trajectory &);
+static void minimizeAcceleration1(Trajectory &);
+static void minimizeAcceleration2(Trajectory &);
+
+static void fixupConstraint1(Trajectory &);
+static void fixupConstraint2(Trajectory &);
+static void fixupConstraint3(Trajectory &);
+static void fixupConstraint4(Trajectory &);
+
 //----------------------------------------------------------------------------
 
 static HWND g_hWnd = 0;
@@ -226,6 +238,86 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			updateHighlight(g_mouse_x, g_mouse_y);
 			repaint();
 			return 0;
+
+		case VK_END:
+			g_trajectory.segmentDuration[0] -= 0.1;
+			repaint();
+			return 0;
+
+		case VK_HOME:
+			g_trajectory.segmentDuration[0] += 0.1;
+			repaint();
+			return 0;
+
+		case VK_NEXT:
+			g_trajectory.segmentDuration[1] += 0.1;
+			repaint();
+			return 0;
+
+		case VK_PRIOR:
+			g_trajectory.segmentDuration[1] -= 0.1;
+			repaint();
+			return 0;
+
+		case VK_LEFT:
+			g_trajectory.node[1].vel[0] -= 1;
+			repaint();
+			return 0;
+
+		case VK_RIGHT:
+			g_trajectory.node[1].vel[0] += 1;
+			repaint();
+			return 0;
+
+		case VK_UP:
+			g_trajectory.node[1].vel[1] -= 1;
+			repaint();
+			return 0;
+
+		case VK_DOWN:
+			g_trajectory.node[1].vel[1] += 1;
+			repaint();
+			return 0;
+
+		case 'D':
+			descendObjective(g_trajectory);
+			repaint();
+			return 0;
+
+		case 'C':
+			descendObjectiveConstrained(g_trajectory);
+			repaint();
+			return 0;
+
+		case '1':
+			fixupConstraint1(g_trajectory);
+			repaint();
+			return 0;
+
+		case '2':
+			fixupConstraint2(g_trajectory);
+			repaint();
+			return 0;
+
+		case '3':
+			fixupConstraint3(g_trajectory);
+			repaint();
+			return 0;
+
+		case '4':
+			fixupConstraint4(g_trajectory);
+			repaint();
+			return 0;
+
+		case '5':
+			minimizeAcceleration1(g_trajectory);
+			repaint();
+			return 0;
+
+		case '6':
+			minimizeAcceleration2(g_trajectory);
+			repaint();
+			return 0;
 		}
 		return 0;
 	
@@ -271,8 +363,8 @@ void EnableOpenGL(HWND hWnd, HDC &hDC, HGLRC &hRC)
 	glEnable(GL_COLOR_MATERIAL);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//	glEnable(GL_LINE_SMOOTH);
-//	glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE);
+	glEnable(GL_LINE_SMOOTH);
+	glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE);
 //	glEnable(GL_POLYGON_SMOOTH);
 //	glHint(GL_POLYGON_SMOOTH_HINT, GL_DONT_CARE);
 
@@ -295,17 +387,6 @@ void EnableOpenGL(HWND hWnd, HDC &hDC, HGLRC &hRC)
 			}
 		glEnd();
 	glEndList();
-
-	// Generate font display lists.
-
-	// make the system font the device context's selected font 
-	SelectObject (g_hDC, GetStockObject (SYSTEM_FONT)); 
-	 
-	// create the bitmap display lists 
-	// we're making images of glyphs 0 thru 255 
-	// the display list numbering starts at 1000, an arbitrary choice 
-	wglUseFontBitmaps (g_hDC, 0, 255, 1000); 
-	glListBase(1000); 
 }
 
 void DisableOpenGL(HWND hWnd, HDC hDC, HGLRC hRC)
@@ -320,14 +401,17 @@ void init()
 	g_trajectory.node.clear();
 
 	g_trajectory.node.reserve(10);
-	g_trajectory.node.push_back({ dvec2(0, -200), dvec2(0, 0) });
-	g_trajectory.node.push_back({ dvec2(0, 0), dvec2(100, 100) });
-	g_trajectory.node.push_back({ dvec2(100, 0), dvec2(0, 0) });
+//	g_trajectory.node.push_back({ dvec2(0, -200), dvec2(0, 0) });
+//	g_trajectory.node.push_back({ dvec2(0, 0), dvec2(85, 85) });
+//	g_trajectory.node.push_back({ dvec2(100, 0), dvec2(0, 0) });
+	g_trajectory.node.push_back({ dvec2(-200, -150), dvec2(0, 0) });
+	g_trajectory.node.push_back({ dvec2(0, -150), dvec2(100, 0) });
+	g_trajectory.node.push_back({ dvec2(200, -150), dvec2(0, 0) });
 
 	g_trajectory.segmentDuration.clear();
 	g_trajectory.segmentDuration.reserve(9);
-	g_trajectory.segmentDuration.push_back(4);
-	g_trajectory.segmentDuration.push_back(4);
+	g_trajectory.segmentDuration.push_back(3);
+	g_trajectory.segmentDuration.push_back(3);
 
 	// Nothing selected, initially
 
@@ -367,6 +451,11 @@ inline double sqr(double x)
 	return x * x;
 }
 
+inline double cube(double x)
+{
+	return x * x * x;
+}
+
 static void plotAcceleration(const Trajectory & traj)
 {
 	double tTotal = 0;
@@ -386,11 +475,11 @@ static void plotAcceleration(const Trajectory & traj)
 		dvec2 a0 = x0 * (-6.0 / sqr(h)) + x1 * (6.0 / sqr(h)) + v0 * (-4.0 / h) + v1 * (-2.0 / h);
 		dvec2 a1 = x0 * (6.0 / sqr(h)) + x1 * (-6.0 / sqr(h)) + v0 * (2.0 / h) + v1 * (4.0 / h);
 
-		aMax = std::max(aMax, a0.len());
-		aMax = std::max(aMax, a1.len());
+		aMax = std::max(aMax, a0.sqlen());
+		aMax = std::max(aMax, a1.sqlen());
 	}
 
-	aMax = std::max(aMax, accelerationLimit);
+	aMax = std::max(aMax, sqr(accelerationLimit * 2));
 
 	glColor3d(0.2, 0.2, 0.2);
 	glBegin(GL_LINE_LOOP);
@@ -417,7 +506,7 @@ static void plotAcceleration(const Trajectory & traj)
 	{
 		glColor3d(0.5, 0.1, 0.1);
 
-		double y = accelerationLimit / aMax;
+		double y = sqr(accelerationLimit) / aMax;
 
 		glVertex2d(0, y);
 		glVertex2d(1, y);
@@ -425,10 +514,14 @@ static void plotAcceleration(const Trajectory & traj)
 
 	glEnd();
 
-	glColor3d(1, 1, 0);
 	u0 = 0;
 	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
 	{
+		if (i == 0)
+			glColor3d(1, 1, 0);
+		else
+			glColor3d(0, 1, 1);
+
 		dvec2 x0 = traj.node[i].pos;
 		dvec2 x1 = traj.node[i + 1].pos;
 		dvec2 v0 = traj.node[i].vel;
@@ -442,76 +535,21 @@ static void plotAcceleration(const Trajectory & traj)
 
 		glBegin(GL_LINE_STRIP);
 
-		for (size_t j = 0; j < 16; ++j)
+		for (size_t j = 0; j < 48; ++j)
 		{
-			double t = double(j) / 16.0;
+			double t = double(j) / 48.0;
 
 			dvec2 a = a0 + (a1 - a0) * t;
 			double u = u0 + (u1 - u0) * t;
 
-			glVertex2d(u, a.len() / aMax);
+			glVertex2d(u, a.sqlen() / aMax);
 		}
 
-		glVertex2d(u1, a1.len() / aMax);
+		glVertex2d(u1, a1.sqlen() / aMax);
 
 		glEnd();
 
 		u0 = u1;
-	}
-}
-
-static void plotTrajectory(const Trajectory & traj)
-{
-	// Draw curve nodes
-
-	for (size_t i = 0; i < traj.node.size(); ++i)
-	{
-		const NodeState & s = traj.node[i];
-
-		if (i == g_highlightedNode)
-			glColor3d(1, 1, 1);
-		else
-			glColor3d(0.65, 0.65, 0.65);
-
-		glPushMatrix();
-		glTranslated(s.pos[0], s.pos[1], 0.0);
-		glScaled(discRadius, discRadius, 1.0);
-		drawDisc();
-		glPopMatrix();
-	}
-
-	// Draw the curve
-
-	glColor3d(1, 1, 1);
-	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
-	{
-		double h = traj.segmentDuration[i];
-		dvec2 x0 = traj.node[i].pos;
-		dvec2 x1 = traj.node[i + 1].pos;
-		dvec2 v0 = traj.node[i].vel;
-		dvec2 v1 = traj.node[i + 1].vel;
-
-		dvec2 acc0 = (x1 - x0) * (6.0 / sqr(h)) - (v0 * 4.0 + v1 * 2.0) / h;
-		dvec2 jrk0 = (v1 - v0) * (2.0 / sqr(h)) - acc0 * (2.0 / h);
-
-		// Evaluate the segment position
-
-		glBegin(GL_LINE_STRIP);
-
-		glVertex2dv(&x0[0]);
-
-		for (size_t j = 1; j < 16; ++j)
-		{
-			double t = h * double(j) / 16.0;
-
-			dvec2 pos = x0 + (v0 + (acc0 + jrk0 * (t / 3.0f)) * (t / 2.0f)) * t;
-
-			glVertex2dv(&pos[0]);
-		}
-
-		glVertex2dv(&x1[0]);
-
-		glEnd();
 	}
 }
 
@@ -545,10 +583,18 @@ void drawScene()
 
 	plotAcceleration(g_trajectory);
 
+	// Plot accelerations into limit circle
+
+	glLoadIdentity();
+	glTranslated(-0.65, 0.1, 0);
+	glScaled(0.25, 0.25, 1.0);
+
+	plotAccelerations(g_trajectory);
+
 	SwapBuffers(g_hDC);
 }
 
-static void beginMouseDrag(HWND hWnd, int mouseX, int mouseY)
+void beginMouseDrag(HWND hWnd, int mouseX, int mouseY)
 {
 	g_selectedNode = g_highlightedNode;
 
@@ -560,7 +606,7 @@ static void beginMouseDrag(HWND hWnd, int mouseX, int mouseY)
 	SetCapture(hWnd);
 }
 
-static void endMouseDrag()
+void endMouseDrag()
 {
 	g_selectedNode = g_trajectory.node.size();
 
@@ -568,7 +614,7 @@ static void endMouseDrag()
 	updateHighlight(g_mouse_x, g_mouse_y);
 }
 
-static dvec2 posMouseWorld(int mouseX, int mouseY)
+dvec2 posMouseWorld(int mouseX, int mouseY)
 {
 	int viewport[4] = { 0, 0, g_size_x, g_size_y };
 	double mvmatrix[16], projmatrix[16];
@@ -583,12 +629,12 @@ static dvec2 posMouseWorld(int mouseX, int mouseY)
 	return dvec2(pos[0], pos[1]);
 }
 
-static void updateMouseDrag(int mouseX, int mouseY)
+void updateMouseDrag(int mouseX, int mouseY)
 {
 	g_trajectory.node[g_selectedNode].pos = g_posOffset + posMouseWorld(mouseX, mouseY);
 }
 
-static size_t closestNode(int mouse_x, int mouse_y)
+size_t closestNode(int mouse_x, int mouse_y)
 {
 	dvec2 posMouse = posMouseWorld(mouse_x, mouse_y);
 
@@ -609,7 +655,317 @@ static size_t closestNode(int mouse_x, int mouse_y)
 	return iClosest;
 }
 
-static void repaint()
+void repaint()
 {
 	InvalidateRect(g_hWnd, NULL, FALSE);
+}
+
+void plotAccelerations(const Trajectory & traj)
+{
+	// Plot the constraint curves if you hold vy and h1 constant (vx versus h0)
+
+	glColor3d(0.5, 0.1, 0.1);
+	glBegin(GL_LINE_LOOP);
+	for (int i = 0; i < 32; ++i)
+	{
+		double a = double(i) * pi / 16.0;
+		glVertex2d(cos(a), sin(a));
+	}
+	glEnd();
+
+	const double aMax = accelerationLimit;
+	const double h0 = traj.segmentDuration[0];
+	const double h1 = traj.segmentDuration[1];
+	const dvec2 p0 = traj.node[0].pos;
+	const dvec2 v0 = traj.node[0].vel;
+	const dvec2 p1 = traj.node[1].pos;
+	const dvec2 v1 = traj.node[1].vel;
+	const dvec2 p2 = traj.node[2].pos;
+	const dvec2 v2 = traj.node[2].vel;
+	const dvec2 dPos0 = p1 - p0;
+	const dvec2 dPos1 = p2 - p1;
+
+	dvec2 a0 = (dPos0 * ( 6.0 / sqr(h0)) + v0 * -4.0 / h0 + v1 * -2.0 / h0) / aMax;
+	dvec2 a1 = (dPos0 * (-6.0 / sqr(h0)) + v0 *  2.0 / h0 + v1 *  4.0 / h0) / aMax;
+	dvec2 a2 = (dPos1 * ( 6.0 / sqr(h1)) + v1 * -4.0 / h1 + v2 * -2.0 / h1) / aMax;
+	dvec2 a3 = (dPos1 * (-6.0 / sqr(h1)) + v1 *  2.0 / h1 + v2 *  4.0 / h1) / aMax;
+
+	glColor3d(1, 1, 0);
+	glPushMatrix();
+	glTranslated(a0[0], a0[1], 0.0);
+	glScaled(0.04, 0.04, 1.0);
+	drawDisc();
+	glPopMatrix();
+
+	glColor3d(0, 1, 1);
+	glPushMatrix();
+	glTranslated(a2[0], a2[1], 0.0);
+	glScaled(0.04, 0.04, 1.0);
+	drawDisc();
+	glPopMatrix();
+
+	glBegin(GL_LINES);
+	glColor3d(1, 1, 0);
+	glVertex2dv(&a0[0]);
+	glVertex2dv(&a1[0]);
+	glColor3d(0, 1, 1);
+	glVertex2dv(&a2[0]);
+	glVertex2dv(&a3[0]);
+	glEnd();
+}
+
+void plotTrajectory(const Trajectory & traj)
+{
+	// Draw curve nodes
+
+	for (size_t i = 0; i < traj.node.size(); ++i)
+	{
+		const NodeState & s = traj.node[i];
+
+		if (i == g_highlightedNode)
+			glColor3d(1, 1, 1);
+		else
+			glColor3d(0.65, 0.65, 0.65);
+
+		glPushMatrix();
+		glTranslated(s.pos[0], s.pos[1], 0.0);
+		glScaled(discRadius, discRadius, 1.0);
+		drawDisc();
+		glPopMatrix();
+	}
+
+	// Draw the curve
+
+	for (size_t i = 0; i < traj.segmentDuration.size(); ++i)
+	{
+		if (i == 0)
+			glColor3d(1, 1, 0);
+		else
+			glColor3d(0, 1, 1);
+
+		double h = traj.segmentDuration[i];
+		dvec2 x0 = traj.node[i].pos;
+		dvec2 x1 = traj.node[i + 1].pos;
+		dvec2 v0 = traj.node[i].vel;
+		dvec2 v1 = traj.node[i + 1].vel;
+
+		dvec2 acc0 = (x1 - x0) * (6.0 / sqr(h)) - (v0 * 4.0 + v1 * 2.0) / h;
+		dvec2 jrk0 = (v1 - v0) * (2.0 / sqr(h)) - acc0 * (2.0 / h);
+
+		// Evaluate the segment position
+
+		glBegin(GL_LINE_STRIP);
+
+		glVertex2dv(&x0[0]);
+
+		for (size_t j = 1; j < 16; ++j)
+		{
+			double t = h * double(j) / 16.0;
+
+			dvec2 pos = x0 + (v0 + (acc0 + jrk0 * (t / 3.0f)) * (t / 2.0f)) * t;
+
+			glVertex2dv(&pos[0]);
+		}
+
+		glVertex2dv(&x1[0]);
+
+		glEnd();
+	}
+}
+
+void descendObjective(Trajectory & traj)
+{
+	traj.segmentDuration[0] *= 0.75;
+	traj.segmentDuration[1] *= 0.75;
+}
+
+void descendObjectiveConstrained(Trajectory & traj)
+{
+	// Reduce h0 (traj.segmentDuration[0]) to minimum that satisfies both constraints 1 and 2
+	// 1: aMax^2 - sqlen((x1 - x0) *  6/h0^2 + v0 * -4/h0 + v1 * -2/h0) >= 0
+	// 2: aMax^2 - sqlen((x1 - x0) * -6/h0^2 + v0 *  2/h0 + v1 *  4/h0) >= 0
+
+	// 1: aMax^2 - ((x1 - x0) *  6/h0^2 + vx0 * -4/h0 + vx1 * -2/h0)^2 - ((y1 - y0) *  6/h0^2 + vy0 * -4/h0 + vy1 * -2/h0)^2 >= 0
+
+	const double aMax = accelerationLimit;
+	const double h0 = traj.segmentDuration[0];
+	const dvec2 p0 = traj.node[0].pos;
+	const dvec2 v0 = traj.node[0].vel;
+	const dvec2 p1 = traj.node[1].pos;
+	const dvec2 v1 = traj.node[1].vel;
+	const dvec2 dPos = p1 - p0;
+
+	dvec2 a0Vec = dPos * (6.0 / sqr(h0)) + v0 * -4.0 / h0 + v1 * -2.0 / h0;
+	double a0 = a0Vec.len();
+
+	double a0Excess = a0 - aMax;
+
+	dvec2 a1Vec = dPos * (-6.0 / sqr(h0)) + v0 * 2.0 / h0 + v1 * 4.0 / h0;
+	double a1 = a1Vec.len();
+
+	double a1Excess = a1 - aMax;
+
+	if (a0Excess <= 0)
+		return;
+
+	dvec2 x = dPos * (-12.0 / cube(h0)) + v0 * (4.0 / sqr(h0)) + v1 * (2.0 / sqr(h0));
+	double dA_dH0 = x.dot(a0Vec) / a0;
+	double dA_dVX = (-2.0 * a0Vec[0]) / (a0 * h0);
+	double dA_dVY = (-2.0 * a0Vec[1]) / (a0 * h0);
+
+	double u = a0Excess / (sqr(dA_dH0) + sqr(dA_dVX) + sqr(dA_dVY));
+
+	traj.segmentDuration[0] -= dA_dH0 * u;
+}
+
+void minimizeAcceleration1(Trajectory & traj)
+{
+	const double h0 = traj.segmentDuration[0];
+	const double h1 = traj.segmentDuration[1];
+	const double x0 = traj.node[0].pos[0];
+	const double v0 = traj.node[0].vel[0];
+	const double x1 = traj.node[1].pos[0];
+	const double v1 = traj.node[1].vel[0];
+	const double x2 = traj.node[2].pos[0];
+	const double v2 = traj.node[2].vel[0];
+
+	double v1n = -0.8 * (v0 * sqr(h1) + v1 * sqr(h0)) + 1.8 * ((x1 - x0) * sqr(h1) / h0 + (x2 - x1) * sqr(h0) / h1);
+	v1n /= sqr(h0) + sqr(h1);
+
+	traj.node[1].vel[0] = v1n;
+}
+
+void minimizeAcceleration2(Trajectory & traj)
+{
+	const double h0 = traj.segmentDuration[0];
+	const double h1 = traj.segmentDuration[1];
+	const double x0 = traj.node[0].pos[1];
+	const double v0 = traj.node[0].vel[1];
+	const double x1 = traj.node[1].pos[1];
+	const double v1 = traj.node[1].vel[1];
+	const double x2 = traj.node[2].pos[1];
+	const double v2 = traj.node[2].vel[1];
+
+	double v1n = -0.8 * (v0 * sqr(h1) + v1 * sqr(h0)) + 1.8 * ((x1 - x0) * sqr(h1) / h0 + (x2 - x1) * sqr(h0) / h1);
+	v1n /= sqr(h0) + sqr(h1);
+
+	traj.node[1].vel[1] = v1n;
+}
+
+void fixupConstraint1(Trajectory & traj)
+{
+	// Constraint a1: aMax^2 - sqlen(x0 * -6/h0^2 + x1 * 6/h0^2 + v0 * -4/h0 + v1 * -2/h0) >= 0
+
+	const double aMax = accelerationLimit;
+	const double h0 = traj.segmentDuration[0];
+	const dvec2 p0 = traj.node[0].pos;
+	const dvec2 v0 = traj.node[0].vel;
+	const dvec2 p1 = traj.node[1].pos;
+	const dvec2 v1 = traj.node[1].vel;
+	const dvec2 dPos = p1 - p0;
+
+	dvec2 aVec = dPos * (6.0 / sqr(h0)) + v0 * -4.0 / h0 + v1 * -2.0 / h0;
+	double a = aVec.len();
+
+	double aExcess = a - aMax;
+	if (aExcess <= 0)
+		return;
+
+	dvec2 x = dPos * (-12.0 / cube(h0)) + v0 * (4.0 / sqr(h0)) + v1 * (2.0 / sqr(h0));
+	double dA_dH0 = x.dot(aVec) / a;
+	double dA_dVX = (-2.0 * aVec[0]) / (a * h0);
+	double dA_dVY = (-2.0 * aVec[1]) / (a * h0);
+
+	double u = aExcess / (sqr(dA_dH0) + sqr(dA_dVX) + sqr(dA_dVY));
+
+	traj.segmentDuration[0] -= dA_dH0 * u;
+	traj.node[1].vel[0] -= dA_dVX * u;
+	traj.node[1].vel[1] -= dA_dVY * u;
+}
+
+void fixupConstraint2(Trajectory & traj)
+{
+	const double aMax = accelerationLimit;
+	const double h0 = traj.segmentDuration[0];
+	const dvec2 p0 = traj.node[0].pos;
+	const dvec2 v0 = traj.node[0].vel;
+	const dvec2 p1 = traj.node[1].pos;
+	const dvec2 v1 = traj.node[1].vel;
+	const dvec2 dPos = p1 - p0;
+
+	dvec2 aVec = dPos * (-6.0 / sqr(h0)) + v0 * 2.0 / h0 + v1 * 4.0 / h0;
+	double a = aVec.len();
+
+	double aExcess = a - aMax;
+	if (aExcess <= 0)
+		return;
+
+	dvec2 x = dPos * (12.0 / cube(h0)) + v0 * (-2.0 / sqr(h0)) + v1 * (-4.0 / sqr(h0));
+	double dA_dH0 = x.dot(aVec) / a;
+	double dA_dVX = (4.0 * aVec[0]) / (a * h0);
+	double dA_dVY = (4.0 * aVec[1]) / (a * h0);
+
+	double u = aExcess / (sqr(dA_dH0) + sqr(dA_dVX) + sqr(dA_dVY));
+
+	traj.segmentDuration[0] -= dA_dH0 * u;
+	traj.node[1].vel[0] -= dA_dVX * u;
+	traj.node[1].vel[1] -= dA_dVY * u;
+}
+
+void fixupConstraint3(Trajectory & traj)
+{
+	const double aMax = accelerationLimit;
+	const double h1 = traj.segmentDuration[1];
+	const dvec2 p1 = traj.node[1].pos;
+	const dvec2 v1 = traj.node[1].vel;
+	const dvec2 p2 = traj.node[2].pos;
+	const dvec2 v2 = traj.node[2].vel;
+	const dvec2 dPos = p2 - p1;
+
+	dvec2 aVec = dPos * (6.0 / sqr(h1)) + v1 * -4.0 / h1 + v2 * -2.0 / h1;
+	double a = aVec.len();
+
+	double aExcess = a - aMax;
+	if (aExcess <= 0)
+		return;
+
+	dvec2 x = dPos * (-12.0 / cube(h1)) + v1 * (4.0 / sqr(h1)) + v2 * (2.0 / sqr(h1));
+	double dA_dH1 = x.dot(aVec) / a;
+	double dA_dVX = (-4.0 * aVec[0]) / (a * h1);
+	double dA_dVY = (-4.0 * aVec[1]) / (a * h1);
+
+	double u = aExcess / (sqr(dA_dH1) + sqr(dA_dVX) + sqr(dA_dVY));
+
+	traj.segmentDuration[1] -= dA_dH1 * u;
+	traj.node[1].vel[0] -= dA_dVX * u;
+	traj.node[1].vel[1] -= dA_dVY * u;
+}
+
+void fixupConstraint4(Trajectory & traj)
+{
+	const double aMax = accelerationLimit;
+	const double h1 = traj.segmentDuration[1];
+	const dvec2 p1 = traj.node[1].pos;
+	const dvec2 v1 = traj.node[1].vel;
+	const dvec2 p2 = traj.node[2].pos;
+	const dvec2 v2 = traj.node[2].vel;
+	const dvec2 dPos = p2 - p1;
+
+	dvec2 aVec = dPos * (-6.0 / sqr(h1)) + v1 * 2.0 / h1 + v2 * 4.0 / h1;
+	double a = aVec.len();
+
+	double aExcess = a - aMax;
+	if (aExcess <= 0)
+		return;
+
+	dvec2 x = dPos * (12.0 / cube(h1)) + v1 * (-2.0 / sqr(h1)) + v2 * (-4.0 / sqr(h1));
+	double dA_dH1 = x.dot(aVec) / a;
+	double dA_dVX = (2.0 * aVec[0]) / (a * h1);
+	double dA_dVY = (2.0 * aVec[1]) / (a * h1);
+
+	double u = aExcess / (sqr(dA_dH1) + sqr(dA_dVX) + sqr(dA_dVY));
+
+	traj.segmentDuration[1] -= dA_dH1 * u;
+	traj.node[1].vel[0] -= dA_dVX * u;
+	traj.node[1].vel[1] -= dA_dVY * u;
 }
