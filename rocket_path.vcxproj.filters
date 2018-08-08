@@ -14,9 +14,21 @@
     <ClCompile Include="rocket_path.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="fixptpath.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libs\vec\vec.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="problem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="fixptpath.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="draw.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
