@@ -72,8 +72,9 @@ static void updateHighlight(int mouseX, int mouseY);
 static dvec2 posMouseWorld(int mouseX, int mouseY);
 static size_t closestNode(int mouseX, int mouseY);
 static void projectionMatrix(double m[16]);
-static void identityMatrix(double m[16]);
+static void modelViewMatrix(double m[16]);
 
+static dvec2 posFromTime(const Trajectory &, double t);
 static void plotTrajectory(const Trajectory &);
 static void plotAcceleration(const Trajectory &);
 static void plotAccelerations(const Trajectory &);
@@ -111,23 +112,23 @@ void FixPointPath::init()
 {
 	memset(&g_trajectory, 0, sizeof(g_trajectory));
 
-	g_trajectory.var[pos0X] = 0; // -200;
-	g_trajectory.var[pos0Y] = -50; // -150;
-	g_trajectory.var[vel0X] = 50;
+	g_trajectory.var[pos0X] = -200;
+	g_trajectory.var[pos0Y] = 0;
+	g_trajectory.var[vel0X] = 0;
 	g_trajectory.var[vel0Y] = 0;
 
 	g_trajectory.var[pos1X] = 0;
-	g_trajectory.var[pos1Y] = -150;
+	g_trajectory.var[pos1Y] = 0;
 	g_trajectory.var[vel1X] = 0;// 100;
 	g_trajectory.var[vel1Y] = 0;
 
-	g_trajectory.var[pos2X] = 0; // 200;
-	g_trajectory.var[pos2Y] = -250;// -150;
+	g_trajectory.var[pos2X] = 200;
+	g_trajectory.var[pos2Y] = 0;
 	g_trajectory.var[vel2X] = 0;
 	g_trajectory.var[vel2Y] = 0;
 
-	g_trajectory.var[duration0] = 2.44042;
-	g_trajectory.var[duration1] = 2.44042;
+	g_trajectory.var[duration0] = 3.4641;
+	g_trajectory.var[duration1] = 3.4641;
 
 	// Nothing selected, initially
 
@@ -270,7 +271,8 @@ void FixPointPath::onDraw()
 	glLoadMatrixd(m);
 
 	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
+	modelViewMatrix(m);
+	glLoadMatrixd(m);
 
 	plotTrajectory(g_trajectory);
 
@@ -604,9 +606,6 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 
 		debug_printf("Constraint %u: dot=%g, err=%g\n", i, d, constraintError[i]);
 
-//		if (d <= 0)
-//			continue;
-
 		if (constraintError[i] <= -1.0e-4)
 			continue;
 
@@ -718,13 +717,14 @@ void projectionMatrix(double m[16])
 	m[15] = 1;
 }
 
-void identityMatrix(double m[16])
+void modelViewMatrix(double m[16])
 {
 	memset(m, 0, 16*sizeof(double));
 	m[0] = 1;
 	m[5] = 1;
 	m[10] = 1;
 	m[15] = 1;
+	m[13] = -100;
 }
 
 dvec2 posMouseWorld(int mouseX, int mouseY)
@@ -732,7 +732,7 @@ dvec2 posMouseWorld(int mouseX, int mouseY)
 	int viewport[4] = { 0, 0, windowSizeX(), windowSizeY() };
 	double mvmatrix[16], projmatrix[16];
 	projectionMatrix(projmatrix);
-	identityMatrix(mvmatrix);
+	modelViewMatrix(mvmatrix);
 
 	mouseY = viewport[3] - mouseY - 1;
 
@@ -959,9 +959,9 @@ static void drawSegment(dvec2 x0, dvec2 v0, dvec2 x1, dvec2 v1, double h, double
 
 	glVertex2dv(&x0[0]);
 
-	for (size_t j = 1; j < 16; ++j)
+	for (size_t j = 1; j < 32; ++j)
 	{
-		double t = h * double(j) / 16.0;
+		double t = h * double(j) / 32.0;
 
 		dvec2 pos = x0 + (v0 + (acc0 + jrk0 * (t / 3.0f)) * (t / 2.0f)) * t;
 
@@ -971,6 +971,47 @@ static void drawSegment(dvec2 x0, dvec2 v0, dvec2 x1, dvec2 v1, double h, double
 	glVertex2dv(&x1[0]);
 
 	glEnd();
+}
+
+dvec2 posFromCubic(const dvec2 & x0, const dvec2 & v0, const dvec2 & x1, const dvec2 & v1, double h, double u)
+{
+	dvec2 acc0 = (x1 - x0) * (6.0 / sqr(h)) - (v0 * 4.0 + v1 * 2.0) / h;
+	dvec2 jrk0 = (v1 - v0) * (2.0 / sqr(h)) - acc0 * (2.0 / h);
+
+	dvec2 pos = x0 + (v0 + (acc0 + jrk0 * (u / 3.0f)) * (u / 2.0f)) * u;
+
+	return pos;
+}
+
+dvec2 posFromTime(const Trajectory & traj, double t)
+{
+	if (t < traj.var[duration0])
+	{
+		return posFromCubic(
+			dvec2(traj.var[pos0X], traj.var[pos0Y]),
+			dvec2(traj.var[vel0X], traj.var[vel0Y]),
+			dvec2(traj.var[pos1X], traj.var[pos1Y]),
+			dvec2(traj.var[vel1X], traj.var[vel1Y]),
+			traj.var[duration0],
+			t
+		);
+	}
+
+	t -= traj.var[duration0];
+
+	if (t < traj.var[duration1])
+	{
+		return posFromCubic(
+			dvec2(traj.var[pos1X], traj.var[pos1Y]),
+			dvec2(traj.var[vel1X], traj.var[vel1Y]),
+			dvec2(traj.var[pos2X], traj.var[pos2Y]),
+			dvec2(traj.var[vel2X], traj.var[vel2Y]),
+			traj.var[duration1],
+			t
+		);
+	}
+
+	return dvec2(traj.var[pos2X], traj.var[pos2Y]);
 }
 
 void plotTrajectory(const Trajectory & traj)
