@@ -1,7 +1,6 @@
 #include "onedpath.h"
 
 #include "draw.h"
-#include "vec.h"
 
 #include <windows.h>
 #include <gl/gl.h>
@@ -12,7 +11,6 @@
 
 #include <Eigen/Dense>
 #include <algorithm>
-#include <vector>
 
 using namespace Eigen;
 using std::max;
@@ -36,7 +34,6 @@ enum V
 	M
 };
 
-static const size_t numNodes = 3;
 static const size_t numConstraints = 4;
 
 struct Trajectory
@@ -53,14 +50,8 @@ static void moveTowardFeasibility(Trajectory &);
 static void moveInConstrainedGradientDir(Trajectory &);
 static void printState(const Trajectory &);
 
-static void projectionMatrix(double m[16]);
-static void modelViewMatrix(double m[16]);
-
-static double posFromCubic(double x0, double v0, double x1, double v1, double h, double u);
-static double posFromTime(const Trajectory &, double t);
 static void plotTrajectory(const Trajectory &);
 static void plotAcceleration(const Trajectory &);
-static void descendObjectiveConstrained(Trajectory &);
 
 static double constraintError0(const Trajectory &);
 static double constraintError1(const Trajectory &);
@@ -161,31 +152,10 @@ void OneDPath::onKey(unsigned int key)
 		repaint();
 		break;
 
-	case 'C':
-		descendObjectiveConstrained(g_trajectory);
-		repaint();
-		break;
-
 	case 'I':
 		init();
 		repaint();
 		break;
-
-	case 'P':
-	{
-		double error[numConstraints];
-		getConstraintErrors(g_trajectory, error);
-		double errorAccum = 0;
-		for (double e : error)
-		{
-			if (e > 0)
-			{
-				errorAccum += sqr(e);
-			}
-		}
-		debug_printf("Constraint errors: %g %g %g %g --> %g\n", error[0], error[1], error[2], error[3], errorAccum);
-	}
-	break;
 
 	case 'S':
 		printState(g_trajectory);
@@ -609,29 +579,6 @@ void printState(const Trajectory & traj)
 	}
 }
 
-void projectionMatrix(double m[16])
-{
-	double rx = windowSizeX();
-	double ry = windowSizeY();
-	double rz = 500;
-
-	memset(m, 0, 16*sizeof(double));
-	m[0] = 2.0 / rx;
-	m[5] = 2.0 / ry;
-	m[10] = -1.0 / rz;
-	m[15] = 1;
-}
-
-void modelViewMatrix(double m[16])
-{
-	memset(m, 0, 16*sizeof(double));
-	m[0] = 1;
-	m[5] = 1;
-	m[10] = 1;
-	m[15] = 1;
-	m[13] = -100;
-}
-
 void plotAcceleration(const Trajectory & traj)
 {
 	double s = 1.0 / (2.0 * accelerationLimit);
@@ -701,47 +648,6 @@ static void drawSegment(double x0, double v0, double x1, double v1, double h, do
 	glEnd();
 }
 
-double posFromCubic(double x0, double v0, double x1, double v1, double h, double u)
-{
-	double acc0 = (x1 - x0) * (6.0 / sqr(h)) - (v0 * 4.0 + v1 * 2.0) / h;
-	double jrk0 = (v1 - v0) * (2.0 / sqr(h)) - acc0 * (2.0 / h);
-
-	double pos = x0 + (v0 + (acc0 + jrk0 * (u / 3.0f)) * (u / 2.0f)) * u;
-
-	return pos;
-}
-
-double posFromTime(const Trajectory & traj, double t)
-{
-	if (t < traj.var[duration0])
-	{
-		return posFromCubic(
-			traj.var[pos0X],
-			traj.var[vel0X],
-			traj.var[pos1X],
-			traj.var[vel1X],
-			traj.var[duration0],
-			t
-		);
-	}
-
-	t -= traj.var[duration0];
-
-	if (t < traj.var[duration1])
-	{
-		return posFromCubic(
-			traj.var[pos1X],
-			traj.var[vel1X],
-			traj.var[pos2X],
-			traj.var[vel2X],
-			traj.var[duration1],
-			t
-		);
-	}
-
-	return traj.var[pos2X];
-}
-
 void plotTrajectory(const Trajectory & traj)
 {
 	glColor3d(0.2, 0.2, 0.2);
@@ -792,45 +698,6 @@ void plotTrajectory(const Trajectory & traj)
 	glPopMatrix();
 
 	glPopMatrix();
-}
-
-void descendObjectiveConstrained(Trajectory & traj)
-{
-	// Reduce h0 (traj.segmentDuration[0]) to minimum that satisfies both constraints 1 and 2
-	// 1: aMax^2 - sqlen((x1 - x0) *  6/h0^2 + v0 * -4/h0 + v1 * -2/h0) >= 0
-	// 2: aMax^2 - sqlen((x1 - x0) * -6/h0^2 + v0 *  2/h0 + v1 *  4/h0) >= 0
-
-	// 1: aMax^2 - ((x1 - x0) *  6/h0^2 + vx0 * -4/h0 + vx1 * -2/h0)^2 - ((y1 - y0) *  6/h0^2 + vy0 * -4/h0 + vy1 * -2/h0)^2 >= 0
-
-	const double aMax = accelerationLimit;
-	const double h0 = traj.var[duration0];
-	const double p0 = traj.var[pos0X];
-	const double v0 = traj.var[vel0X];
-	const double p1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double dPos = p1 - p0;
-
-	double a0Vec = dPos * (6.0 / sqr(h0)) + v0 * -4.0 / h0 + v1 * -2.0 / h0;
-	double a0 = fabs(a0Vec);
-
-	double a0Excess = a0 - aMax;
-
-	double a1Vec = dPos * (-6.0 / sqr(h0)) + v0 * 2.0 / h0 + v1 * 4.0 / h0;
-	double a1 = fabs(a1Vec);
-
-	double a1Excess = a1 - aMax;
-
-	if (a0Excess <= 0)
-		return;
-
-	double x = dPos * (-12.0 / cube(h0)) + v0 * (4.0 / sqr(h0)) + v1 * (2.0 / sqr(h0));
-	double dA_dH0 = x * a0Vec / a0;
-	double dA_dVX = (-2.0 * a0Vec) / (a0 * h0);
-
-	double u = a0Excess / (sqr(dA_dH0) + sqr(dA_dVX));
-
-	traj.var[duration0] -= dA_dH0 * u;
-	traj.var[vel1X] -= dA_dVX * u;
 }
 
 void fixupConstraint1(Trajectory & traj)
