@@ -758,6 +758,9 @@ void plotTrajectory(const Trajectory & traj)
 	glBegin(GL_LINES);
 	glVertex2d(u1, 0);
 	glVertex2d(u1, 1);
+
+	glVertex2d(0, traj.var[pos1X] / 400.0);
+	glVertex2d(1, traj.var[pos1X] / 400.0);
 	glEnd();
 
 	// Draw the curve
