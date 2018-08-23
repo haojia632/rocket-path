@@ -1,4 +1,4 @@
-#include "fixptpath.h"
+#include "onedpath.h"
 
 #include "draw.h"
 #include "vec.h"
@@ -81,8 +81,6 @@ static void plotAccelerations(const Trajectory &);
 static void plotSegmentAccelerationMagnitude(dvec2 x0, dvec2 v0, dvec2 x1, dvec2 v1, double aMax, double u0, double u1, double h, double r, double g, double b);
 static void descendObjective(Trajectory &);
 static void descendObjectiveConstrained(Trajectory &);
-static void minimizeAcceleration1(Trajectory &);
-static void minimizeAcceleration2(Trajectory &);
 
 static double constraintError0(const Trajectory &);
 static double constraintError1(const Trajectory &);
@@ -109,15 +107,15 @@ inline double cube(double x)
 	return x * x * x;
 }
 
-FixPointPath::FixPointPath()
+OneDPath::OneDPath()
 {
 }
 
-FixPointPath::~FixPointPath()
+OneDPath::~OneDPath()
 {
 }
 
-void FixPointPath::init()
+void OneDPath::init()
 {
 	memset(&g_trajectory, 0, sizeof(g_trajectory));
 
@@ -145,7 +143,7 @@ void FixPointPath::init()
 	g_selectedNode = numNodes;
 }
 
-void FixPointPath::onKey(unsigned int key)
+void OneDPath::onKey(unsigned int key)
 {
 	switch (key)
 	{
@@ -211,20 +209,20 @@ void FixPointPath::onKey(unsigned int key)
 		break;
 
 	case 'P':
+	{
+		double error[numConstraints];
+		getConstraintErrors(g_trajectory, error);
+		double errorAccum = 0;
+		for (double e : error)
 		{
-			double error[numConstraints];
-			getConstraintErrors(g_trajectory, error);
-			double errorAccum = 0;
-			for (double e : error)
+			if (e > 0)
 			{
-				if (e > 0)
-				{
-					errorAccum += sqr(e);
-				}
+				errorAccum += sqr(e);
 			}
-			debug_printf("Constraint errors: %g %g %g %g --> %g\n", error[0], error[1], error[2], error[3], errorAccum);
 		}
-		break;
+		debug_printf("Constraint errors: %g %g %g %g --> %g\n", error[0], error[1], error[2], error[3], errorAccum);
+	}
+	break;
 
 	case 'S':
 		printState(g_trajectory);
@@ -254,20 +252,10 @@ void FixPointPath::onKey(unsigned int key)
 		fixupConstraint4(g_trajectory);
 		repaint();
 		break;
-
-	case '5':
-		minimizeAcceleration1(g_trajectory);
-		repaint();
-		break;
-
-	case '6':
-		minimizeAcceleration2(g_trajectory);
-		repaint();
-		break;
 	}
 }
 
-void FixPointPath::onDraw()
+void OneDPath::onDraw()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -306,7 +294,7 @@ void FixPointPath::onDraw()
 	plotAccelerations(g_trajectory);
 }
 
-void FixPointPath::onMouseMove(int x, int y)
+void OneDPath::onMouseMove(int x, int y)
 {
 	g_mouse_x = x;
 	g_mouse_y = y;
@@ -321,7 +309,7 @@ void FixPointPath::onMouseMove(int x, int y)
 	}
 }
 
-void FixPointPath::onMouseDown()
+void OneDPath::onMouseDown()
 {
 	g_selectedNode = g_highlightedNode;
 
@@ -331,7 +319,7 @@ void FixPointPath::onMouseDown()
 	}
 }
 
-void FixPointPath::onMouseUp()
+void OneDPath::onMouseUp()
 {
 	g_selectedNode = numNodes;
 
@@ -1095,40 +1083,6 @@ void descendObjectiveConstrained(Trajectory & traj)
 	double u = a0Excess / (sqr(dA_dH0) + sqr(dA_dVX) + sqr(dA_dVY));
 
 	traj.var[duration0] -= dA_dH0 * u;
-}
-
-void minimizeAcceleration1(Trajectory & traj)
-{
-	const double h0 = traj.var[duration0];
-	const double h1 = traj.var[duration1];
-	const double x0 = traj.var[pos0X];
-	const double v0 = traj.var[vel0X];
-	const double x1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double x2 = traj.var[pos2X];
-	const double v2 = traj.var[vel2X];
-
-	double v1n = -0.8 * (v0 * sqr(h1) + v1 * sqr(h0)) + 1.8 * ((x1 - x0) * sqr(h1) / h0 + (x2 - x1) * sqr(h0) / h1);
-	v1n /= sqr(h0) + sqr(h1);
-
-	traj.var[vel1X] = v1n;
-}
-
-void minimizeAcceleration2(Trajectory & traj)
-{
-	const double h0 = traj.var[duration0];
-	const double h1 = traj.var[duration1];
-	const double x0 = traj.var[pos0Y];
-	const double v0 = traj.var[vel0Y];
-	const double x1 = traj.var[pos1Y];
-	const double v1 = traj.var[vel1Y];
-	const double x2 = traj.var[pos2Y];
-	const double v2 = traj.var[vel2Y];
-
-	double v1n = -0.8 * (v0 * sqr(h1) + v1 * sqr(h0)) + 1.8 * ((x1 - x0) * sqr(h1) / h0 + (x2 - x1) * sqr(h0) / h1);
-	v1n /= sqr(h0) + sqr(h1);
-
-	traj.var[vel1Y] = v1n;
 }
 
 void fixupConstraint1(Trajectory & traj)

@@ -71,12 +71,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="fixptpath.cpp" />
+    <ClCompile Include="onedpath.cpp" />
     <ClCompile Include="rocket_path.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="draw.h" />
     <ClInclude Include="fixptpath.h" />
     <ClInclude Include="libs\vec\vec.h" />
+    <ClInclude Include="onedpath.h" />
     <ClInclude Include="problem.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

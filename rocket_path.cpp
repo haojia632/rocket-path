@@ -2,9 +2,11 @@
 #include <gl/gl.h>
 
 #include <cmath>
+#include <stdio.h>
 
 #include "draw.h"
 #include "fixptpath.h"
+#include "onedpath.h"
 
 //----------------------------------------------------------------------------
 
@@ -33,6 +35,8 @@ static int g_size_y = 1;
 static unsigned g_disc_list = 0;
 
 static FixPointPath g_problem1;
+static OneDPath g_problem2;
+static Problem * g_problemCur = &g_problem2;
 
 //----------------------------------------------------------------------------
 
@@ -84,11 +88,12 @@ int WINAPI WinMain
 
 	// Initialize simulation.
 	g_problem1.init();
+	g_problem2.init();
 
 	{
 		POINT posMouse = { 0, 0 };
 		GetCursorPos(&posMouse);
-		g_problem1.onMouseMove(posMouse.x, posMouse.y);
+		g_problemCur->onMouseMove(posMouse.x, posMouse.y);
 	}
 
 	// program main loop
@@ -163,13 +168,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			int x = int(short(LOWORD(lParam)));
 			int y = int(short(HIWORD(lParam)));
-			g_problem1.onMouseMove(x, y);
+			g_problemCur->onMouseMove(x, y);
 			repaint();
 		}
 		return 0;
 
 	case WM_PAINT:
-		g_problem1.onDraw();
+		g_problemCur->onDraw();
 		SwapBuffers(g_hDC);
 		ValidateRect(hWnd, NULL);
 		return 0;
@@ -178,15 +183,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			int x = int(short(LOWORD(lParam)));
 			int y = int(short(HIWORD(lParam)));
-			g_problem1.onMouseMove(x, y);
-			g_problem1.onMouseDown();
+			g_problemCur->onMouseMove(x, y);
+			g_problemCur->onMouseDown();
 			SetCapture(hWnd);
 		}
 		return 0;
 
 	case WM_LBUTTONUP:
 		{
-			g_problem1.onMouseUp();
+			g_problemCur->onMouseUp();
 			ReleaseCapture();
 		}
 		return 0;
@@ -198,7 +203,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		else
 		{
-			g_problem1.onKey(wParam);
+			g_problemCur->onKey(wParam);
 		}
 		return 0;
 	
@@ -285,4 +290,18 @@ int windowSizeY()
 void repaint()
 {
 	InvalidateRect(g_hWnd, NULL, FALSE);
+}
+
+void debug_printf(const char * fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+
+	char buffer[512];
+
+	vsprintf_s(buffer, sizeof(buffer), fmt, args);
+
+	va_end(args);
+
+	OutputDebugString(buffer);
 }
