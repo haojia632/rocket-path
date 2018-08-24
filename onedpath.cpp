@@ -35,7 +35,6 @@ enum V
 };
 
 static const size_t numVars = 3;
-static const size_t numConstraints = 4;
 
 struct Trajectory
 {
@@ -53,7 +52,7 @@ static ConstraintFunc evalConstraint1;
 static ConstraintFunc evalConstraint2;
 static ConstraintFunc evalConstraint3;
 
-static ConstraintFunc * constraints[numConstraints] =
+static ConstraintFunc * constraints[] =
 {
 	evalConstraint0,
 	evalConstraint1,
@@ -61,6 +60,10 @@ static ConstraintFunc * constraints[numConstraints] =
 	evalConstraint3,
 };
 
+static const size_t numConstraints = sizeof(constraints) / sizeof(constraints[0]);
+
+static void evalAccelInit(double x0, double v0, double x1, double v1, double t, double & accel, double & dAdT, double & dAdV0, double & dAdV1);
+static void evalAccelFinal(double x0, double v0, double x1, double v1, double t, double & accel, double & dAdT, double & dAdV0, double & dAdV1);
 static void evalConstraints(const Trajectory &, double error[numConstraints], double deriv[numConstraints][numVars]);
 
 static void moveTowardFeasibility(Trajectory &);
@@ -238,88 +241,74 @@ void OneDPath::onMouseUp()
 {
 }
 
+void evalAccelInit(double x0, double v0, double x1, double v1, double t, double & accel, double & dAdT, double & dAdV0, double & dAdV1)
+{
+	const double dX = x1 - x0;
+
+	accel = (dX * 6.0 / t + v0 * -4.0 + v1 * -2.0) / t;
+
+	dAdT = (dX * -12.0 / t + v0 * 4.0 + v1 * 2.0) / sqr(t);
+	dAdV0 = -4.0 / t;
+	dAdV1 = -2.0 / t;
+}
+
+void evalAccelFinal(double x0, double v0, double x1, double v1, double t, double & accel, double & dAdT, double & dAdV0, double & dAdV1)
+{
+	const double dX = x1 - x0;
+
+	accel = (dX * -6.0 / t + v0 * 2.0 + v1 * 4.0) / t;
+
+	dAdT = (dX * 12.0 / t + v0 * -2.0 + v1 * -4.0) / sqr(t);
+	dAdV0 = 2.0 / t;
+	dAdV1 = 4.0 / t;
+}
+
 void evalConstraint0(const Trajectory & traj, double & error, double deriv[numVars])
 {
-	const double h = traj.var[duration0];
-	const double p0 = traj.var[pos0X];
-	const double v0 = traj.var[vel0X];
-	const double p1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double dPos = p1 - p0;
-
-	// Take derivatives of dot(a, a) with respect to h, v1.x, and v1.y
-
-	const double a = (dPos * 6.0 / h + v0 * -4.0 + v1 * -2.0) / h;
-	const double dAdH = (dPos * -12.0 / h + v0 * 4.0 + v1 * 2.0) / sqr(h);
+	double a, dAdT, dAdV0, dAdV1;
+	evalAccelInit(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
 	error = sqr(a) - sqr(accelerationLimit);
 
-	deriv[duration0] = 2.0 * a * dAdH;
+	deriv[duration0] = 2.0 * a * dAdT;
 	deriv[duration1] = 0;
-	deriv[vel1X] = a * -4.0 / h; // 2 * a[0] * d(a[0])/dV1X
+	deriv[vel1X] = 2.0 * a * dAdV1;
 }
 
 void evalConstraint1(const Trajectory & traj, double & error, double deriv[numVars])
 {
-	const double h = traj.var[duration0];
-	const double p0 = traj.var[pos0X];
-	const double v0 = traj.var[vel0X];
-	const double p1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double dPos = p1 - p0;
-
-	// Take derivatives of dot(a, a) with respect to h, v1.x, and v1.y
-
-	const double a = (dPos * -6.0 / h + v0 * 2.0 + v1 * 4.0) / h;
-	const double dAdH = (dPos * 12.0 / h + v0 * -2.0 + v1 * -4.0) / sqr(h);
+	double a, dAdT, dAdV0, dAdV1;
+	evalAccelFinal(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
 	error = sqr(a) - sqr(accelerationLimit);
 
-	deriv[duration0] = 2.0 * a * dAdH;
+	deriv[duration0] = 2.0 * a * dAdT;
 	deriv[duration1] = 0;
-	deriv[vel1X] = a * 8.0 / h;
+	deriv[vel1X] = 2.0 * a * dAdV1;
 }
 
 void evalConstraint2(const Trajectory & traj, double & error, double deriv[numVars])
 {
-	const double h = traj.var[duration1];
-	const double p0 = traj.var[pos1X];
-	const double v0 = traj.var[vel1X];
-	const double p1 = traj.var[pos2X];
-	const double v1 = traj.var[vel2X];
-	const double dPos = p1 - p0;
-
-	// Take derivatives of dot(a, a) with respect to h, v1.x, and v1.y
-
-	const double a = (dPos * 6.0 / h + v0 * -4.0 + v1 * -2.0) / h;
-	const double dAdH = (dPos * -12.0 / h + v0 * 4.0 + v1 * 2.0) / sqr(h);
+	double a, dAdT, dAdV0, dAdV1;
+	evalAccelInit(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
 
 	error = sqr(a) - sqr(accelerationLimit);
 
 	deriv[duration0] = 0;
-	deriv[duration1] = 2.0 * a * dAdH;
-	deriv[vel1X] = a * -8.0 / h;
+	deriv[duration1] = 2.0 * a * dAdT;
+	deriv[vel1X] = 2.0 * a * dAdV0;
 }
 
 void evalConstraint3(const Trajectory & traj, double & error, double deriv[numVars])
 {
-	const double h = traj.var[duration1];
-	const double p0 = traj.var[pos1X];
-	const double v0 = traj.var[vel1X];
-	const double p1 = traj.var[pos2X];
-	const double v1 = traj.var[vel2X];
-	const double dPos = p1 - p0;
-
-	// Take derivatives of dot(a, a) with respect to h, v1.x, and v1.y
-
-	const double a = (dPos * -6.0 / h + v0 * 2.0 + v1 * 4.0) / h;
-	const double dAdH = (dPos * 12.0 / h + v0 * -2.0 + v1 * -4.0) / sqr(h);
+	double a, dAdT, dAdV0, dAdV1;
+	evalAccelFinal(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
 
 	error = sqr(a) - sqr(accelerationLimit);
 
 	deriv[duration0] = 0;
-	deriv[duration1] = 2.0 * a * dAdH;
-	deriv[vel1X] = a * 4.0 / h;
+	deriv[duration1] = 2.0 * a * dAdT;
+	deriv[vel1X] = 2.0 * a * dAdV0;
 }
 
 void evalConstraints(const Trajectory & traj, double error[numConstraints], double deriv[numConstraints][numVars])
