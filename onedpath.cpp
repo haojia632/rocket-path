@@ -51,6 +51,10 @@ static ConstraintFunc evalConstraint0;
 static ConstraintFunc evalConstraint1;
 static ConstraintFunc evalConstraint2;
 static ConstraintFunc evalConstraint3;
+static ConstraintFunc evalConstraint4;
+static ConstraintFunc evalConstraint5;
+static ConstraintFunc evalConstraint6;
+static ConstraintFunc evalConstraint7;
 
 static ConstraintFunc * constraints[] =
 {
@@ -58,6 +62,10 @@ static ConstraintFunc * constraints[] =
 	evalConstraint1,
 	evalConstraint2,
 	evalConstraint3,
+	evalConstraint4,
+	evalConstraint5,
+	evalConstraint6,
+	evalConstraint7,
 };
 
 static const size_t numConstraints = sizeof(constraints) / sizeof(constraints[0]);
@@ -175,21 +183,25 @@ void OneDPath::onKey(unsigned int key)
 
 	case '1':
 		fixupConstraint(g_trajectory, constraints[0]);
-		repaint();
-		break;
-
-	case '2':
 		fixupConstraint(g_trajectory, constraints[1]);
 		repaint();
 		break;
 
-	case '3':
+	case '2':
 		fixupConstraint(g_trajectory, constraints[2]);
+		fixupConstraint(g_trajectory, constraints[3]);
+		repaint();
+		break;
+
+	case '3':
+		fixupConstraint(g_trajectory, constraints[4]);
+		fixupConstraint(g_trajectory, constraints[5]);
 		repaint();
 		break;
 
 	case '4':
-		fixupConstraint(g_trajectory, constraints[3]);
+		fixupConstraint(g_trajectory, constraints[6]);
+		fixupConstraint(g_trajectory, constraints[7]);
 		repaint();
 		break;
 	}
@@ -268,47 +280,95 @@ void evalConstraint0(const Trajectory & traj, double & error, double deriv[numVa
 	double a, dAdT, dAdV0, dAdV1;
 	evalAccelInit(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
-	error = sqr(a) - sqr(accelerationLimit);
+	error = -a - accelerationLimit;
 
-	deriv[duration0] = 2.0 * a * dAdT;
+	deriv[duration0] = -dAdT;
 	deriv[duration1] = 0;
-	deriv[vel1X] = 2.0 * a * dAdV1;
+	deriv[vel1X] = -dAdV1;
 }
 
 void evalConstraint1(const Trajectory & traj, double & error, double deriv[numVars])
 {
 	double a, dAdT, dAdV0, dAdV1;
-	evalAccelFinal(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
+	evalAccelInit(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
-	error = sqr(a) - sqr(accelerationLimit);
+	error = a - accelerationLimit;
 
-	deriv[duration0] = 2.0 * a * dAdT;
+	deriv[duration0] = dAdT;
 	deriv[duration1] = 0;
-	deriv[vel1X] = 2.0 * a * dAdV1;
+	deriv[vel1X] = dAdV1;
 }
 
 void evalConstraint2(const Trajectory & traj, double & error, double deriv[numVars])
 {
 	double a, dAdT, dAdV0, dAdV1;
-	evalAccelInit(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
+	evalAccelFinal(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
-	error = sqr(a) - sqr(accelerationLimit);
+	error = -a - accelerationLimit;
 
-	deriv[duration0] = 0;
-	deriv[duration1] = 2.0 * a * dAdT;
-	deriv[vel1X] = 2.0 * a * dAdV0;
+	deriv[duration0] = -dAdT;
+	deriv[duration1] = 0;
+	deriv[vel1X] = -dAdV1;
 }
 
 void evalConstraint3(const Trajectory & traj, double & error, double deriv[numVars])
 {
 	double a, dAdT, dAdV0, dAdV1;
-	evalAccelFinal(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
+	evalAccelFinal(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
-	error = sqr(a) - sqr(accelerationLimit);
+	error = a - accelerationLimit;
+
+	deriv[duration0] = dAdT;
+	deriv[duration1] = 0;
+	deriv[vel1X] = dAdV1;
+}
+
+void evalConstraint4(const Trajectory & traj, double & error, double deriv[numVars])
+{
+	double a, dAdT, dAdV0, dAdV1;
+	evalAccelInit(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
+
+	error = -a - accelerationLimit;
 
 	deriv[duration0] = 0;
-	deriv[duration1] = 2.0 * a * dAdT;
-	deriv[vel1X] = 2.0 * a * dAdV0;
+	deriv[duration1] = -dAdT;
+	deriv[vel1X] = -dAdV0;
+}
+
+void evalConstraint5(const Trajectory & traj, double & error, double deriv[numVars])
+{
+	double a, dAdT, dAdV0, dAdV1;
+	evalAccelInit(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
+
+	error = a - accelerationLimit;
+
+	deriv[duration0] = 0;
+	deriv[duration1] = dAdT;
+	deriv[vel1X] = dAdV0;
+}
+
+void evalConstraint6(const Trajectory & traj, double & error, double deriv[numVars])
+{
+	double a, dAdT, dAdV0, dAdV1;
+	evalAccelFinal(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
+
+	error = -a - accelerationLimit;
+
+	deriv[duration0] = 0;
+	deriv[duration1] = -dAdT;
+	deriv[vel1X] = -dAdV0;
+}
+
+void evalConstraint7(const Trajectory & traj, double & error, double deriv[numVars])
+{
+	double a, dAdT, dAdV0, dAdV1;
+	evalAccelFinal(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
+
+	error = a - accelerationLimit;
+
+	deriv[duration0] = 0;
+	deriv[duration1] = dAdT;
+	deriv[vel1X] = dAdV0;
 }
 
 void evalConstraints(const Trajectory & traj, double error[numConstraints], double deriv[numConstraints][numVars])
