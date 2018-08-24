@@ -34,6 +34,7 @@ enum V
 	M
 };
 
+static const size_t numVars = 3;
 static const size_t numConstraints = 4;
 
 struct Trajectory
@@ -45,28 +46,31 @@ static Trajectory g_trajectory;
 
 const double accelerationLimit = 100.0;
 
-static void getConstraintErrors(const Trajectory &, double error[numConstraints]);
+typedef void (ConstraintFunc) (const Trajectory &, double & error, double deriv[numVars]);
+
+static ConstraintFunc evalConstraint0;
+static ConstraintFunc evalConstraint1;
+static ConstraintFunc evalConstraint2;
+static ConstraintFunc evalConstraint3;
+
+static ConstraintFunc * constraints[numConstraints] =
+{
+	evalConstraint0,
+	evalConstraint1,
+	evalConstraint2,
+	evalConstraint3,
+};
+
+static void evalConstraints(const Trajectory &, double error[numConstraints], double deriv[numConstraints][numVars]);
+
 static void moveTowardFeasibility(Trajectory &);
 static void moveInConstrainedGradientDir(Trajectory &);
-static void printState(const Trajectory &);
+static void fixupConstraint(Trajectory &, ConstraintFunc * constraint);
 
+static void printConstraints(const double error[numConstraints], const double deriv[numConstraints][numVars]);
+static void printState(const Trajectory &);
 static void plotTrajectory(const Trajectory &);
 static void plotAcceleration(const Trajectory &);
-
-static double constraintError0(const Trajectory &);
-static double constraintError1(const Trajectory &);
-static double constraintError2(const Trajectory &);
-static double constraintError3(const Trajectory &);
-
-static void constraintGradient0(const Trajectory &, double deriv[3]);
-static void constraintGradient1(const Trajectory &, double deriv[3]);
-static void constraintGradient2(const Trajectory &, double deriv[3]);
-static void constraintGradient3(const Trajectory &, double deriv[3]);
-
-static void fixupConstraint1(Trajectory &);
-static void fixupConstraint2(Trajectory &);
-static void fixupConstraint3(Trajectory &);
-static void fixupConstraint4(Trajectory &);
 
 inline double sqr(double x)
 {
@@ -167,22 +171,22 @@ void OneDPath::onKey(unsigned int key)
 		break;
 
 	case '1':
-		fixupConstraint1(g_trajectory);
+		fixupConstraint(g_trajectory, constraints[0]);
 		repaint();
 		break;
 
 	case '2':
-		fixupConstraint2(g_trajectory);
+		fixupConstraint(g_trajectory, constraints[1]);
 		repaint();
 		break;
 
 	case '3':
-		fixupConstraint3(g_trajectory);
+		fixupConstraint(g_trajectory, constraints[2]);
 		repaint();
 		break;
 
 	case '4':
-		fixupConstraint4(g_trajectory);
+		fixupConstraint(g_trajectory, constraints[3]);
 		repaint();
 		break;
 	}
@@ -200,7 +204,7 @@ static void unitSquare(double xMin, double xMax, double yMin, double yMax)
 
 void OneDPath::onDraw()
 {
-	const double margin = 20.0;
+	const double margin = 10.0;
 	const double sx = windowSizeX();
 	const double sy = windowSizeY();
 
@@ -234,21 +238,7 @@ void OneDPath::onMouseUp()
 {
 }
 
-double constraintError0(const Trajectory & traj)
-{
-	const double h = traj.var[duration0];
-	const double p0 = traj.var[pos0X];
-	const double v0 = traj.var[vel0X];
-	const double p1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double dPos = p1 - p0;
-
-	double a = (dPos * 6.0 / h + v0 * -4.0 + v1 * -2.0) / h;
-
-	return sqr(a) - sqr(accelerationLimit);
-}
-
-void constraintGradient0(const Trajectory & traj, double deriv[3])
+void evalConstraint0(const Trajectory & traj, double & error, double deriv[numVars])
 {
 	const double h = traj.var[duration0];
 	const double p0 = traj.var[pos0X];
@@ -261,27 +251,15 @@ void constraintGradient0(const Trajectory & traj, double deriv[3])
 
 	const double a = (dPos * 6.0 / h + v0 * -4.0 + v1 * -2.0) / h;
 	const double dAdH = (dPos * -12.0 / h + v0 * 4.0 + v1 * 2.0) / sqr(h);
+
+	error = sqr(a) - sqr(accelerationLimit);
 
 	deriv[duration0] = 2.0 * a * dAdH;
 	deriv[duration1] = 0;
 	deriv[vel1X] = a * -4.0 / h; // 2 * a[0] * d(a[0])/dV1X
 }
 
-double constraintError1(const Trajectory & traj)
-{
-	const double h = traj.var[duration0];
-	const double p0 = traj.var[pos0X];
-	const double v0 = traj.var[vel0X];
-	const double p1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double dPos = p1 - p0;
-
-	double a = (dPos * -6.0 / h + v0 * 2.0 + v1 * 4.0) / h;
-
-	return sqr(a) - sqr(accelerationLimit);
-}
-
-void constraintGradient1(const Trajectory & traj, double deriv[3])
+void evalConstraint1(const Trajectory & traj, double & error, double deriv[numVars])
 {
 	const double h = traj.var[duration0];
 	const double p0 = traj.var[pos0X];
@@ -295,26 +273,14 @@ void constraintGradient1(const Trajectory & traj, double deriv[3])
 	const double a = (dPos * -6.0 / h + v0 * 2.0 + v1 * 4.0) / h;
 	const double dAdH = (dPos * 12.0 / h + v0 * -2.0 + v1 * -4.0) / sqr(h);
 
+	error = sqr(a) - sqr(accelerationLimit);
+
 	deriv[duration0] = 2.0 * a * dAdH;
 	deriv[duration1] = 0;
 	deriv[vel1X] = a * 8.0 / h;
 }
 
-double constraintError2(const Trajectory & traj)
-{
-	const double h = traj.var[duration1];
-	const double p0 = traj.var[pos1X];
-	const double v0 = traj.var[vel1X];
-	const double p1 = traj.var[pos2X];
-	const double v1 = traj.var[vel2X];
-	const double dPos = p1 - p0;
-
-	double a = (dPos * 6.0 / h + v0 * -4.0 + v1 * -2.0) / h;
-
-	return sqr(a) - sqr(accelerationLimit);
-}
-
-void constraintGradient2(const Trajectory & traj, double deriv[3])
+void evalConstraint2(const Trajectory & traj, double & error, double deriv[numVars])
 {
 	const double h = traj.var[duration1];
 	const double p0 = traj.var[pos1X];
@@ -328,26 +294,14 @@ void constraintGradient2(const Trajectory & traj, double deriv[3])
 	const double a = (dPos * 6.0 / h + v0 * -4.0 + v1 * -2.0) / h;
 	const double dAdH = (dPos * -12.0 / h + v0 * 4.0 + v1 * 2.0) / sqr(h);
 
+	error = sqr(a) - sqr(accelerationLimit);
+
 	deriv[duration0] = 0;
 	deriv[duration1] = 2.0 * a * dAdH;
 	deriv[vel1X] = a * -8.0 / h;
 }
 
-double constraintError3(const Trajectory & traj)
-{
-	const double h = traj.var[duration1];
-	const double p0 = traj.var[pos1X];
-	const double v0 = traj.var[vel1X];
-	const double p1 = traj.var[pos2X];
-	const double v1 = traj.var[vel2X];
-	const double dPos = p1 - p0;
-
-	double a = (dPos * -6.0 / h + v0 * 2.0 + v1 * 4.0) / h;
-
-	return sqr(a) - sqr(accelerationLimit);
-}
-
-void constraintGradient3(const Trajectory & traj, double deriv[3])
+void evalConstraint3(const Trajectory & traj, double & error, double deriv[numVars])
 {
 	const double h = traj.var[duration1];
 	const double p0 = traj.var[pos1X];
@@ -361,17 +315,19 @@ void constraintGradient3(const Trajectory & traj, double deriv[3])
 	const double a = (dPos * -6.0 / h + v0 * 2.0 + v1 * 4.0) / h;
 	const double dAdH = (dPos * 12.0 / h + v0 * -2.0 + v1 * -4.0) / sqr(h);
 
+	error = sqr(a) - sqr(accelerationLimit);
+
 	deriv[duration0] = 0;
 	deriv[duration1] = 2.0 * a * dAdH;
 	deriv[vel1X] = a * 4.0 / h;
 }
 
-void getConstraintErrors(const Trajectory & traj, double error[numConstraints])
+void evalConstraints(const Trajectory & traj, double error[numConstraints], double deriv[numConstraints][numVars])
 {
-	error[0] = constraintError0(traj);
-	error[1] = constraintError1(traj);
-	error[2] = constraintError2(traj);
-	error[3] = constraintError3(traj);
+	for (size_t i = 0; i < numConstraints; ++i)
+	{
+		(*constraints[i])(traj, error[i], deriv[i]);
+	}
 }
 
 void moveTowardFeasibility(Trajectory & traj)
@@ -379,13 +335,8 @@ void moveTowardFeasibility(Trajectory & traj)
 	// Collect violated constraints
 
 	double constraintError[numConstraints];
-	getConstraintErrors(traj, constraintError);
-
-	debug_printf("\nConstraint errors: %g %g %g %g\n",
-		max(0.0, constraintError[0]),
-		max(0.0, constraintError[1]),
-		max(0.0, constraintError[2]),
-		max(0.0, constraintError[3]));
+	double constraintGradient[numConstraints][numVars];
+	evalConstraints(traj, constraintError, constraintGradient);
 
 	size_t n = 0;
 	size_t constraintIndex[numConstraints];
@@ -398,87 +349,76 @@ void moveTowardFeasibility(Trajectory & traj)
 		}
 	}
 
-	if (n == 0)
-	{
-		debug_printf("No constraints violated\n");
-		return;
-	}
-
 	// Get the errors and gradients of the violated constraints
 
-	double constraintGradient[numConstraints][3];
-	constraintGradient0(traj, constraintGradient[0]);
-	constraintGradient1(traj, constraintGradient[1]);
-	constraintGradient2(traj, constraintGradient[2]);
-	constraintGradient3(traj, constraintGradient[3]);
-
-	MatrixXd g(n, 3);
-	VectorXd err(n);
-	for (size_t j = 0; j < n; ++j)
-	{
-		size_t i = constraintIndex[j];
-		err(j) = constraintError[i];
-		for (size_t k = 0; k < 3; ++k)
-		{
-			g(j, k) = constraintGradient[i][k];
-		}
-	}
-
-	debug_printf("Constraint gradients:\n");
-	for (size_t j = 0; j < n; ++j)
-	{
-		for (size_t i = 0; i < 3; ++i)
-		{
-			debug_printf(" %g", g(j, i));
-		}
-		debug_printf("\n");
-	}
-
-	// Compute multipliers for the gradients of the violated constraints that will add up to remove the error
-
-	MatrixXd a = g * g.transpose();
-
-	VectorXd m = a.colPivHouseholderQr().solve(err);
-	assert(m.size() == n);
-
 	double cm[numConstraints];
-	ZeroMemory(cm, sizeof(cm));
-	for (size_t j = 0; j < n; ++j)
+	memset(cm, 0, sizeof(cm));
+
+	VectorXd dX(numVars);
+	dX.setZero();
+
+	if (n > 0)
 	{
-		cm[constraintIndex[j]] = m[j];
+		MatrixXd g(n, numVars);
+		VectorXd err(n);
+		for (size_t j = 0; j < n; ++j)
+		{
+			size_t i = constraintIndex[j];
+			err(j) = constraintError[i];
+			for (size_t k = 0; k < numVars; ++k)
+			{
+				g(j, k) = constraintGradient[i][k];
+			}
+		}
+
+		// Compute multipliers for the gradients of the violated constraints that will add up to remove the error
+
+		MatrixXd a = g * g.transpose();
+
+		VectorXd m = a.colPivHouseholderQr().solve(err);
+		assert(m.size() == n);
+
+		dX = g.transpose() * -m;
+
+		for (size_t j = 0; j < n; ++j)
+			cm[constraintIndex[j]] = m[j];
 	}
 
-	debug_printf("Multipliers: %g %g %g %g\n", cm[0], cm[1], cm[2], cm[3]);
+	debug_printf("\nConstraints:\n");
 
-	Vector3d x = Vector3d::Zero();
-	x -= g.transpose() * m;
+	for (size_t i = 0; i < numConstraints; ++i)
+	{
+		debug_printf("%2u:", i);
+		for (size_t j = 0; j < numVars; ++j)
+		{
+			debug_printf(" %g", constraintGradient[i][j]);
+		}
+		debug_printf(" | %g x %g\n", constraintError[i], cm[i]);
+	}
 
-	debug_printf("Move: %g %g %g\n", x[0], x[1], x[2]);
+	debug_printf("   ");
+	for (size_t i = 0; i < numVars; ++i)
+		debug_printf(" %g", dX[i]);
+	debug_printf("\n");
 
-	traj.var[0] += x[0];
-	traj.var[1] += x[1];
-	traj.var[2] += x[2];
-
-	traj.var[0] = max(1.0e-4, traj.var[0]);
-	traj.var[1] = max(1.0e-4, traj.var[1]);
+	for (size_t i = 0; i < numVars; ++i)
+		traj.var[i] += dX[i];
 }
 
 void moveInConstrainedGradientDir(Trajectory & traj)
 {
 	// Unconstrained objective direction
 
-	Vector3d obj(-0.707107, -0.707107, 0);
+	VectorXd obj(numVars);
+	obj[duration0] = -0.707107;
+	obj[duration1] = -0.707107;
+	obj[vel1X] = 0;
 
 	// Collect active constraints
 
 	double constraintError[numConstraints];
-	getConstraintErrors(traj, constraintError);
-
-	double constraintGradient[numConstraints][3];
-	constraintGradient0(traj, constraintGradient[0]);
-	constraintGradient1(traj, constraintGradient[1]);
-	constraintGradient2(traj, constraintGradient[2]);
-	constraintGradient3(traj, constraintGradient[3]);
+	double constraintGradient[numConstraints][numVars];
+	evalConstraints(traj, constraintError, constraintGradient);
 
 	debug_printf("\n");
 
@@ -487,7 +427,7 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 	for (size_t i = 0; i < numConstraints; ++i)
 	{
 		double d = 0;
-		for (size_t j = 0; j < 3; ++j)
+		for (size_t j = 0; j < numVars; ++j)
 			d += constraintGradient[i][j] * obj[j];
 
 		debug_printf("Constraint %u: dot=%g, err=%g\n", i, d, constraintError[i]);
@@ -505,21 +445,21 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 	{
 		// Solve for Lagrange multipliers on the active constraints that will keep the objective direction from going in the constraint gradient direction
 
-		MatrixXd g(n, 3);
+		MatrixXd g(n, numVars);
 		for (size_t j = 0; j < n; ++j)
 		{
 			size_t i = constraintIndex[j];
-			for (size_t k = 0; k < 3; ++k)
+			for (size_t k = 0; k < numVars; ++k)
 			{
 				g(j, k) = constraintGradient[i][k];
 			}
 		}
 
-		debug_printf("Constraint gradients:\n");
+		debug_printf("Constraints:\n");
 		for (size_t j = 0; j < n; ++j)
 		{
-			debug_printf("%u:", constraintIndex[j]);
-			for (size_t i = 0; i < 3; ++i)
+			debug_printf("%2u:", constraintIndex[j]);
+			for (size_t i = 0; i < numVars; ++i)
 			{
 				debug_printf(" %g", g(j, i));
 			}
@@ -530,7 +470,8 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 		VectorXd err = -(g * obj);
 		VectorXd x = m.colPivHouseholderQr().solve(err);
 
-		Vector4d lm = Vector4d::Zero();
+		double lm[numConstraints];
+		memset(lm, 0, sizeof(lm));
 		for (size_t j = 0; j < n; ++j)
 			lm[constraintIndex[j]] = x[j];
 
@@ -538,7 +479,10 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 
 		double d = obj.norm();
 
-		debug_printf("Constraint multipliers: %g %g %g %g\n", lm[0], lm[1], lm[2], lm[3]);
+		debug_printf("Constraint multipliers:");
+		for (size_t i = 0; i < numConstraints; ++i)
+			debug_printf(" %g", lm[i]);
+		debug_printf("\n");
 		debug_printf("Constraint scale: %g\n", d);
 
 		obj /= max(1.0 / 1024.0, d);
@@ -546,14 +490,45 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 
 	// Take a step in the constrained objective direction
 
-	debug_printf("Constrained objective dir: %g %g %g\n", obj[0], obj[1], obj[2]);
+	debug_printf("Constrained objective dir:");
+	for (size_t i = 0; i < numVars; ++i)
+		debug_printf(" %g", obj[i]);
+	debug_printf("\n");
 
-	traj.var[0] += obj[0];
-	traj.var[1] += obj[1];
-	traj.var[2] += obj[2];
+	for (size_t i = 0; i < numVars; ++i)
+		traj.var[i] += obj[i];
+}
 
-	traj.var[0] = max(1.0e-4, traj.var[0]);
-	traj.var[1] = max(1.0e-4, traj.var[1]);
+void fixupConstraint(Trajectory & traj, ConstraintFunc * constraint)
+{
+	double error;
+	double deriv[numVars];
+	(*constraint)(traj, error, deriv);
+
+	if (error <= 0.0)
+		return;
+
+	double d = 0;
+	for (size_t i = 0; i < numVars; ++i)
+		d += sqr(deriv[i]);
+
+	double u = error / d;
+
+	for (size_t i = 0; i < numVars; ++i)
+		traj.var[i] -= deriv[i] * u;
+}
+
+void printConstraints(const double error[numConstraints], const double deriv[numConstraints][numVars])
+{
+	for (size_t i = 0; i < numConstraints; ++i)
+	{
+		debug_printf("%c%u:", (error[i] > 0) ? '*' : ' ', i);
+		for (size_t j = 0; j < numVars; ++j)
+		{
+			debug_printf(" %g", deriv[i][j]);
+		}
+		debug_printf(" | %g\n", error[i]);
+	}
 }
 
 void printState(const Trajectory & traj)
@@ -564,19 +539,12 @@ void printState(const Trajectory & traj)
 	debug_printf("Duration 0: %g\n", g_trajectory.var[duration0]);
 	debug_printf("Duration 1: %g\n", g_trajectory.var[duration1]);
 
-	double err[numConstraints];
-	getConstraintErrors(g_trajectory, err);
+	double constraintError[numConstraints];
+	double constraintGradient[numConstraints][numVars];
+	evalConstraints(g_trajectory, constraintError, constraintGradient);
 
-	double constraintGradient[numConstraints][3];
-	constraintGradient0(traj, constraintGradient[0]);
-	constraintGradient1(traj, constraintGradient[1]);
-	constraintGradient2(traj, constraintGradient[2]);
-	constraintGradient3(traj, constraintGradient[3]);
-
-	for (size_t i = 0; i < numConstraints; ++i)
-	{
-		debug_printf("%u: %g %g %g = %g\n", i, constraintGradient[i][0], constraintGradient[i][1], constraintGradient[i][2], err[i]);
-	}
+	debug_printf("Constraints:\n");
+	printConstraints(constraintError, constraintGradient);
 }
 
 void plotAcceleration(const Trajectory & traj)
@@ -594,7 +562,15 @@ void plotAcceleration(const Trajectory & traj)
 	double a2 = ((traj.var[pos2X] - traj.var[pos1X]) *  6.0 / traj.var[duration1] + traj.var[vel1X] * -4.0 + traj.var[vel2X] * -2.0) / traj.var[duration1];
 	double a3 = ((traj.var[pos2X] - traj.var[pos1X]) * -6.0 / traj.var[duration1] + traj.var[vel1X] *  2.0 + traj.var[vel2X] *  4.0) / traj.var[duration1];
 
-	glColor3d(0.2, 0.2, 0.2);
+	glColor3d(0.1, 0.1, 0.1);
+	glBegin(GL_QUADS);
+	glVertex2d(0, 0);
+	glVertex2d(1, 0);
+	glVertex2d(1, 1);
+	glVertex2d(0, 1);
+	glEnd();
+
+	glColor3d(0.25, 0.25, 0.25);
 	glBegin(GL_LINE_LOOP);
 	glVertex2d(0, 0);
 	glVertex2d(1, 0);
@@ -628,8 +604,6 @@ static void drawSegment(double x0, double v0, double x1, double v1, double h, do
 	double acc0 = (x1 - x0) * (6.0 / sqr(h)) - (v0 * 4.0 + v1 * 2.0) / h;
 	double jrk0 = (v1 - v0) * (2.0 / sqr(h)) - acc0 * (2.0 / h);
 
-	// Evaluate the segment position
-
 	glBegin(GL_LINE_STRIP);
 
 	glVertex2d(0, x0);
@@ -650,7 +624,15 @@ static void drawSegment(double x0, double v0, double x1, double v1, double h, do
 
 void plotTrajectory(const Trajectory & traj)
 {
-	glColor3d(0.2, 0.2, 0.2);
+	glColor3d(0.1, 0.1, 0.1);
+	glBegin(GL_QUADS);
+	glVertex2d(0, 0);
+	glVertex2d(1, 0);
+	glVertex2d(1, 1);
+	glVertex2d(0, 1);
+	glEnd();
+
+	glColor3d(0.25, 0.25, 0.25);
 	glBegin(GL_LINE_LOOP);
 	glVertex2d(0, 0);
 	glVertex2d(1, 0);
@@ -698,114 +680,4 @@ void plotTrajectory(const Trajectory & traj)
 	glPopMatrix();
 
 	glPopMatrix();
-}
-
-void fixupConstraint1(Trajectory & traj)
-{
-	// Constraint a1: aMax^2 - sqlen(x0 * -6/h0^2 + x1 * 6/h0^2 + v0 * -4/h0 + v1 * -2/h0) >= 0
-
-	const double aMax = accelerationLimit;
-	const double h0 = traj.var[duration0];
-	const double p0 = traj.var[pos0X];
-	const double v0 = traj.var[vel0X];
-	const double p1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double dPos = p1 - p0;
-
-	double aVec = dPos * (6.0 / sqr(h0)) + v0 * -4.0 / h0 + v1 * -2.0 / h0;
-	double a = fabs(aVec);
-
-	double aExcess = a - aMax;
-	if (aExcess <= 0)
-		return;
-
-	double x = dPos * (-12.0 / cube(h0)) + v0 * (4.0 / sqr(h0)) + v1 * (2.0 / sqr(h0));
-	double dA_dH0 = x * aVec / a;
-	double dA_dVX = (-2.0 * aVec) / (a * h0);
-
-	double u = aExcess / (sqr(dA_dH0) + sqr(dA_dVX));
-
-	traj.var[duration0] -= dA_dH0 * u;
-	traj.var[vel1X] -= dA_dVX * u;
-}
-
-void fixupConstraint2(Trajectory & traj)
-{
-	const double aMax = accelerationLimit;
-	const double h0 = traj.var[duration0];
-	const double p0 = traj.var[pos0X];
-	const double v0 = traj.var[vel0X];
-	const double p1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double dPos = p1 - p0;
-
-	double aVec = dPos * (-6.0 / sqr(h0)) + v0 * 2.0 / h0 + v1 * 4.0 / h0;
-	double a = fabs(aVec);
-
-	double aExcess = a - aMax;
-	if (aExcess <= 0)
-		return;
-
-	double x = dPos * (12.0 / cube(h0)) + v0 * (-2.0 / sqr(h0)) + v1 * (-4.0 / sqr(h0));
-	double dA_dH0 = x * aVec / a;
-	double dA_dVX = (4.0 * aVec) / (a * h0);
-
-	double u = aExcess / (sqr(dA_dH0) + sqr(dA_dVX));
-
-	traj.var[duration0] -= dA_dH0 * u;
-	traj.var[vel1X] -= dA_dVX * u;
-}
-
-void fixupConstraint3(Trajectory & traj)
-{
-	const double aMax = accelerationLimit;
-	const double h1 = traj.var[duration1];
-	const double p1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double p2 = traj.var[pos2X];
-	const double v2 = traj.var[vel2X];
-	const double dPos = p2 - p1;
-
-	double aVec = dPos * (6.0 / sqr(h1)) + v1 * -4.0 / h1 + v2 * -2.0 / h1;
-	double a = fabs(aVec);
-
-	double aExcess = a - aMax;
-	if (aExcess <= 0)
-		return;
-
-	double x = dPos * (-12.0 / cube(h1)) + v1 * (4.0 / sqr(h1)) + v2 * (2.0 / sqr(h1));
-	double dA_dH1 = x * aVec / a;
-	double dA_dVX = (-4.0 * aVec) / (a * h1);
-
-	double u = aExcess / (sqr(dA_dH1) + sqr(dA_dVX));
-
-	traj.var[duration1] -= dA_dH1 * u;
-	traj.var[vel1X] -= dA_dVX * u;
-}
-
-void fixupConstraint4(Trajectory & traj)
-{
-	const double aMax = accelerationLimit;
-	const double h1 = traj.var[duration1];
-	const double p1 = traj.var[pos1X];
-	const double v1 = traj.var[vel1X];
-	const double p2 = traj.var[pos2X];
-	const double v2 = traj.var[vel2X];
-	const double dPos = p2 - p1;
-
-	double aVec = dPos * (-6.0 / sqr(h1)) + v1 * 2.0 / h1 + v2 * 4.0 / h1;
-	double a = fabs(aVec);
-
-	double aExcess = a - aMax;
-	if (aExcess <= 0)
-		return;
-
-	double x = dPos * (12.0 / cube(h1)) + v1 * (-2.0 / sqr(h1)) + v2 * (-4.0 / sqr(h1));
-	double dA_dH1 = x * aVec / a;
-	double dA_dVX = (2.0 * aVec) / (a * h1);
-
-	double u = aExcess / (sqr(dA_dH1) + sqr(dA_dVX));
-
-	traj.var[duration1] -= dA_dH1 * u;
-	traj.var[vel1X] -= dA_dVX * u;
 }
