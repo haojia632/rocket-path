@@ -7,6 +7,7 @@
 #include "draw.h"
 #include "fixptpath.h"
 #include "onedpath.h"
+#include "onedpath_ip.h"
 
 //----------------------------------------------------------------------------
 
@@ -36,7 +37,16 @@ static unsigned g_disc_list = 0;
 
 static FixPointPath g_problem1;
 static OneDPath g_problem2;
-static Problem * g_problemCur = &g_problem2;
+static OneDPathInteriorPoint g_problem3;
+
+static Problem * g_problems[] =
+{
+	&g_problem1,
+	&g_problem2,
+	&g_problem3,
+};
+
+static Problem * g_problemCur = &g_problem3;
 
 //----------------------------------------------------------------------------
 
@@ -87,8 +97,10 @@ int WINAPI WinMain
 	EnableOpenGL(g_hWnd, g_hDC, hRC);
 
 	// Initialize simulation.
-	g_problem1.init();
-	g_problem2.init();
+	for (Problem * problem : g_problems)
+	{
+		problem->init();
+	}
 
 	{
 		POINT posMouse = { 0, 0 };
