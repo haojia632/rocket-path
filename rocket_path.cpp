@@ -11,8 +11,8 @@
 
 //----------------------------------------------------------------------------
 
-const int kInitWindowSizeX = 800;
-const int kInitWindowSizeY = 800;
+const int kInitWindowSizeX = 320;
+const int kInitWindowSizeY = 320;
 const unsigned kWindowStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
 
 const char * windowClassName = "Rocket Path";
@@ -25,6 +25,8 @@ const double pi = 3.1415926535897932384626433832795;
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 static void EnableOpenGL(HWND, HDC &, HGLRC &);
 static void DisableOpenGL(HWND, HDC, HGLRC);
+static void dumpImage();
+static void dumpClient(HWND hWnd, const char * filename);
 
 //----------------------------------------------------------------------------
 
@@ -34,6 +36,7 @@ static bool g_active = false;
 static int g_size_x = 1;
 static int g_size_y = 1;
 static unsigned g_disc_list = 0;
+static int g_imageIndex = 0;
 
 static FixPointPath g_problem1;
 static OneDPath g_problem2;
@@ -213,6 +216,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			PostQuitMessage(0);
 		}
+		else if (wParam == VK_F2)
+		{
+			dumpImage();
+		}
 		else
 		{
 			g_problemCur->onKey(wParam);
@@ -316,4 +323,90 @@ void debug_printf(const char * fmt, ...)
 	va_end(args);
 
 	OutputDebugString(buffer);
+}
+
+void dumpImage()
+{
+	char filename[32];
+	sprintf_s(filename, sizeof(filename), "image%04d.bmp", g_imageIndex);
+	++g_imageIndex;
+
+	dumpClient(g_hWnd, filename);
+
+	debug_printf("Wrote %s\n", filename);
+}
+
+void dumpClient(HWND hWnd, const char * filename)
+{
+	// Get the window client rectangle.
+	RECT rc;
+	GetClientRect(hWnd, &rc);
+	ClientToScreen(hWnd, (POINT*)&rc.left);
+	ClientToScreen(hWnd, (POINT*)&rc.right);
+
+	int width = rc.right - rc.left;
+	int height = rc.bottom - rc.top;
+
+	// Get the screen DC
+	HDC hDCScreen = GetDC(NULL);
+
+	// Create a memory HDC and HBITMAP for the window
+	HDC hDCMem = CreateCompatibleDC(hDCScreen);
+	HBITMAP hBmMem = CreateCompatibleBitmap(hDCScreen, width, height);
+	HBITMAP hBmMemOld = (HBITMAP)SelectObject(hDCMem, hBmMem);
+
+	// Blt the window to the memory DC
+	BitBlt(hDCMem, 0, 0, width, height, hDCScreen, rc.left, rc.top, SRCCOPY);
+
+	// Convert the HBITMAP into a DIB
+	BITMAPINFO bi;
+	bi.bmiHeader.biSize = sizeof(BITMAPINFO);
+	bi.bmiHeader.biWidth = width;
+	bi.bmiHeader.biHeight = height;
+	bi.bmiHeader.biPlanes = 1;
+	bi.bmiHeader.biBitCount = 24;
+	bi.bmiHeader.biCompression = BI_RGB;
+	bi.bmiHeader.biSizeImage = 0;
+	bi.bmiHeader.biXPelsPerMeter = 0;
+	bi.bmiHeader.biYPelsPerMeter = 0;
+	bi.bmiHeader.biClrUsed = 0;
+	bi.bmiHeader.biClrImportant = 0;
+	GetDIBits(hDCMem, hBmMem, 0, height, NULL, &bi, DIB_RGB_COLORS);
+
+	// GetDIBits filled in bi.bmiHeader.biSizeImage, allocate memory and now get the DIB bits
+	void * data = malloc(bi.bmiHeader.biSizeImage);
+	GetDIBits(hDCMem, hBmMem, 0, height, data, &bi, DIB_RGB_COLORS);
+
+	// Now save into disk file.
+	FILE * fp;
+	if (0 != fopen_s(&fp, filename, "wb"))
+	{
+		free(data);
+		return;
+	}
+
+	// First, the bitmap file header
+	BITMAPFILEHEADER bmfh;
+	bmfh.bfType = *(WORD*)"BM";
+	bmfh.bfSize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + bi.bmiHeader.biSizeImage;
+	bmfh.bfReserved1 = 0;
+	bmfh.bfReserved2 = 0;
+	bmfh.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+
+	fwrite(&bmfh, sizeof(BITMAPFILEHEADER), 1, fp);
+
+	// Next, the bitmap info header
+	fwrite(&bi.bmiHeader, sizeof(BITMAPINFOHEADER), 1, fp);
+
+	// Finally, the data itself
+	fwrite(data, sizeof(BYTE), bi.bmiHeader.biSizeImage, fp);
+
+	fclose(fp);
+
+	// Cleanup
+	free(data);
+	SelectObject(hDCMem, hBmMemOld);
+	DeleteDC(hDCMem);
+	DeleteObject(hBmMem);
+	ReleaseDC(NULL, hDCScreen);
 }
