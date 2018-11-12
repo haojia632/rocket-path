@@ -19,9 +19,20 @@ enum V
 {
 	// variables
 
+	vel1X,
 	duration0,
 	duration1,
-	vel1X,
+
+	// constraint multipliers (Lagrange multipliers)
+
+	c0, // segment 0 initial acceleration minimum
+	c1, // segment 0 initial acceleration maximum
+	c2, // segment 0 final acceleration minimum
+	c3, // segment 0 final acceleration maximum
+	c4, // segment 1 initial acceleration minimum
+	c5, // segment 1 initial acceleration maximum
+	c6, // segment 1 final acceleration minimum
+	c7, // segment 1 final acceleration maximum
 
 	// constants
 
@@ -102,7 +113,7 @@ static void evalConstraints(
 	Matrix<double, numConstraints, 1> & error,
 	Matrix<double, numConstraints, numVars> & deriv);
 
-static void computeLagrangeMultipliers(Trajectory &, Matrix<double, numConstraints, 1> & lm);
+static void computeLagrangeMultipliers(Trajectory &);
 static void moveTowardFeasibility(Trajectory &);
 static void moveInConstrainedGradientDir(Trajectory &);
 static void moveInteriorPoint(Trajectory &, double slack);
@@ -133,6 +144,8 @@ OneDPathInteriorPoint::~OneDPathInteriorPoint()
 
 void OneDPathInteriorPoint::init()
 {
+	g_slack = 0.5;
+
 	memset(&g_trajectory, 0, sizeof(g_trajectory));
 
 	g_trajectory.var[pos0X] = 0;
@@ -146,6 +159,13 @@ void OneDPathInteriorPoint::init()
 
 	g_trajectory.var[duration0] = 3.4641;
 	g_trajectory.var[duration1] = 3.4641;
+
+	// Start with all the constraints having multipliers of 1?
+
+	for (size_t i = 0; i < numConstraints; ++i)
+	{
+		g_trajectory.var[c0 + i] = 1;
+	}
 }
 
 void OneDPathInteriorPoint::onKey(unsigned int key)
@@ -204,8 +224,7 @@ void OneDPathInteriorPoint::onKey(unsigned int key)
 
 	case 'M':
 		{
-			Matrix<double, numConstraints, 1> y;
-			computeLagrangeMultipliers(g_trajectory, y);
+			computeLagrangeMultipliers(g_trajectory);
 			repaint();
 		}
 		break;
@@ -215,12 +234,12 @@ void OneDPathInteriorPoint::onKey(unsigned int key)
 		repaint();
 		break;
 
-	case '-':
+	case VK_OEM_MINUS:
 		g_slack /= 10.0;
 		debug_printf("Slack is now %g\n", g_slack);
 		break;
 
-	case '=':
+	case VK_OEM_PLUS:
 		g_slack *= 10.0;
 		debug_printf("Slack is now %g\n", g_slack);
 		break;
@@ -523,8 +542,9 @@ void evalConstraints(const Trajectory & traj, Matrix<double, numConstraints, 1> 
 	}
 }
 
-void computeLagrangeMultipliers(Trajectory & traj, Matrix<double, numConstraints, 1> & y)
+void computeLagrangeMultipliers(Trajectory & traj)
 {
+	Matrix<double, numConstraints, 1> y;
 	y.setZero();
 
 	Matrix<double, numVars, 1> obj;
@@ -572,6 +592,11 @@ void computeLagrangeMultipliers(Trajectory & traj, Matrix<double, numConstraints
 		}
 
 		debug_printf("\n");
+	}
+
+	for (size_t i = 0; i < numConstraints; ++i)
+	{
+		traj.var[c0 + i] = y[i];
 	}
 
 	debug_printf("Final multipliers:");
@@ -670,10 +695,8 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 {
 	// Unconstrained objective direction
 
-	VectorXd obj(numVars);
-	obj[duration0] = -0.707107;
-	obj[duration1] = -0.707107;
-	obj[vel1X] = 0;
+	Matrix<double, numVars, 1> obj;
+	obj << -0.707107, -0.707107, 0;
 
 	// Collect active constraints
 
@@ -760,9 +783,233 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 		traj.var[i] += obj[i];
 }
 
+void trajectoryStep(const Trajectory & trajOriginal, const Matrix<double, numVars + numConstraints, 1> & dir, double scale, Trajectory & trajNew)
+{
+	const size_t c = numVars + numConstraints;
+
+	for (size_t i = 0; i < c; ++i)
+	{
+		trajNew.var[i] = trajOriginal.var[i] + dir(i) * scale;
+	}
+
+	for (size_t i = c; i < M; ++i)
+	{
+		trajNew.var[i] = trajOriginal.var[i];
+	}
+}
+
+bool constraintsSatisfied(const Trajectory & traj)
+{
+	for (size_t i = 0; i < numConstraints; ++i)
+	{
+		double error;
+		Matrix<double, numVars, 1> grad;
+		Matrix<double, numVars, numVars> secondDeriv;
+		(*constraints[i])(traj, error, grad, secondDeriv);
+
+		if (error > 0.0)
+			return false;
+	}
+
+	return true;
+}
+
+void residual(const Trajectory & traj, double slack, Matrix<double, numVars + numConstraints, 1> & r)
+{
+	const size_t c = numVars + numConstraints;
+
+	r.setZero();
+
+	// Plug the objective gradient into the residual
+
+	r(duration0) = 1;
+	r(duration1) = 1;
+
+	for (size_t i = 0; i < numConstraints; ++i)
+	{
+		// Current Lagrange multiplier for this constraint
+
+		const double scale = traj.var[c0 + i];
+
+		// Evaluate constraint i
+
+		double error;
+		Matrix<double, numVars, 1> grad;
+		Matrix<double, numVars, numVars> secondDeriv;
+		(*constraints[i])(traj, error, grad, secondDeriv);
+
+		for (size_t j = 0; j < numVars; ++j)
+		{
+			r(j) += scale * grad(j);
+		}
+
+		r(numVars + i) = -scale * error - slack;
+	}
+}
+
+double residualNorm(const Trajectory & traj, double slack)
+{
+	Matrix<double, numVars + numConstraints, 1> r;
+
+	residual(traj, slack, r);
+
+	return r.squaredNorm();
+}
+
 void moveInteriorPoint(Trajectory & traj, double slack)
 {
-	Matrix<double, numVars + numConstraints, numVars + numConstraints> m;
+	const size_t c = numVars + numConstraints;
+
+	Matrix<double, c, c> m; // rate of change in residual component as each variable is varied
+	m.setZero();
+
+	Matrix<double, c, 1> r; // residual
+	r.setZero();
+
+	// Plug the objective gradient into the residual
+
+	r(duration0) = 1;
+	r(duration1) = 1;
+
+	for (size_t i = 0; i < numConstraints; ++i)
+	{
+		// Current Lagrange multiplier for this constraint
+
+		const double scale = traj.var[c0 + i];
+
+		// Evaluate constraint i
+
+		double error;
+		Matrix<double, numVars, 1> grad;
+		Matrix<double, numVars, numVars> secondDeriv;
+		(*constraints[i])(traj, error, grad, secondDeriv);
+
+		// Print the constraint info
+
+		debug_printf("Constraint %u (scale %g):\n", i, scale);
+		for (size_t row = 0; row < numVars; ++row)
+		{
+			for (size_t col = 0; col < numVars; ++col)
+			{
+				debug_printf("%10g ", secondDeriv(row, col));
+			}
+
+			debug_printf("| ");
+
+			for (size_t col = 0; col < numVars; ++col)
+			{
+				debug_printf("%10g ", secondDeriv(row, col) * scale);
+			}
+
+			debug_printf("\n");
+		}
+
+		// Plug the constraint into the matrix and residual vector
+
+		for (size_t row = 0; row < numVars; ++row)
+		{
+			for (size_t col = 0; col < numVars; ++col)
+			{
+				m(row, col) += secondDeriv(row, col) * scale;
+			}
+		}
+
+		for (size_t j = 0; j < numVars; ++j)
+		{
+			m(j, numVars + i) = grad(j);
+			m(numVars + i, j) = -scale * grad(j);
+
+			r(j) += scale * grad(j);
+		}
+
+		m(numVars + i, numVars + i) = -error;
+		r(numVars + i) = -scale * error - slack;
+	}
+
+	// Print the final result
+
+	debug_printf("Full matrix:\n");
+	for (size_t row = 0; row < c; ++row)
+	{
+		for (size_t col = 0; col < c; ++col)
+		{
+			debug_printf("%9g ", m(row, col));
+		}
+
+		debug_printf("| ");
+
+		debug_printf("%g\n", r(row));
+	}
+
+	// Solve the system for the step to try to eliminate the residual
+
+	Matrix<double, c, 1> d;
+	d = m.colPivHouseholderQr().solve(-r);
+
+	debug_printf("Current state:\n");
+	for (size_t i = 0; i < c; ++i)
+	{
+		debug_printf("%s%g", (i > 0) ? " " : "", traj.var[i]);
+	}
+	debug_printf("\nStep for slack %g:\n", slack);
+	for (size_t i = 0; i < c; ++i)
+	{
+		debug_printf("%s%g", (i > 0) ? " " : "", d(i));
+	}
+	debug_printf("\n");
+
+	// Backtrack to a point where none of the Lagrange multipliers are hitting zero
+
+	double s = 1.0;
+
+	for (size_t i = 0; i < numConstraints; ++i)
+	{
+		double dLm = d(numVars + i);
+		if (dLm < 0.0)
+		{
+			double lmOld = traj.var[numVars + i];
+			s = std::min(s, -lmOld / dLm);
+		}
+	}
+
+	s *= 0.99;
+
+	// Backtrack while the step is violating a constraint
+
+	for (size_t i = 0; i < 100; ++i)
+	{
+		Trajectory trajNew;
+		trajectoryStep(traj, d, s, trajNew);
+
+		if (constraintsSatisfied(trajNew))
+			break;
+
+		s *= 0.5;
+	}
+
+	// Backtrack while the magnitude of the residual is not decreasing
+
+	double residualNormOriginal = residualNorm(traj, slack);
+
+	for (size_t i = 0; i < 100; ++i)
+	{
+		Trajectory trajNew;
+		trajectoryStep(traj, d, s, trajNew);
+
+		double residualNormNew = residualNorm(trajNew, slack);
+
+		if (residualNormNew <= residualNormOriginal * (1.0 - 0.01 * s))
+			break;
+
+		s *= 0.5;
+	}
+
+	// Take the step
+
+	d *= s;
+
+	for (size_t i = 0; i < c; ++i)
+		traj.var[i] += d(i);
 }
 
 void fixupConstraint(Trajectory & traj, ConstraintFunc * constraint)
