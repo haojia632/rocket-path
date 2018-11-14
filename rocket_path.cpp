@@ -77,14 +77,14 @@ int WINAPI WinMain
 	wc.lpszClassName = windowClassName;
 	RegisterClass(&wc);
 
-	// Calculate the wize of the overall window for the given client area size.
+	// Calculate the size of the overall window for the given client area size.
 	RECT window_rect = { 0, 0, kInitWindowSizeX, kInitWindowSizeY };
 	AdjustWindowRect(&window_rect, kWindowStyle, FALSE);
 
 	int window_size_x = window_rect.right - window_rect.left;
 	int window_size_y = window_rect.bottom - window_rect.top;
-	int window_pos_x  = (GetSystemMetrics(SM_CXSCREEN) - window_size_x) / 2;
-	int window_pos_y  = (GetSystemMetrics(SM_CYSCREEN) - window_size_y) / 2;
+	int window_pos_x = 16; // (GetSystemMetrics(SM_CXSCREEN) - window_size_x) / 2;
+	int window_pos_y = (GetSystemMetrics(SM_CYSCREEN) - window_size_y) / 2;
 
 	// create main window
 	g_hWnd = CreateWindow
