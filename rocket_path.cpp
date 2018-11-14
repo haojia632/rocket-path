@@ -11,8 +11,8 @@
 
 //----------------------------------------------------------------------------
 
-const int kInitWindowSizeX = 320;
-const int kInitWindowSizeY = 320;
+const int kInitWindowSizeX = 800;
+const int kInitWindowSizeY = 800;
 const unsigned kWindowStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
 
 const char * windowClassName = "Rocket Path";
