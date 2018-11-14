@@ -13,7 +13,6 @@
 #include <algorithm>
 
 using namespace Eigen;
-using std::max;
 
 enum V
 {
