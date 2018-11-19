@@ -2,9 +2,7 @@
 
 #include "draw.h"
 
-#include <windows.h>
-#include <gl/gl.h>
-#include <gl/glu.h>
+#include <GL/glut.h>
 
 #undef min
 #undef max
@@ -200,67 +198,73 @@ void OneDPath2InteriorPoint::init()
 	initDefault(g_trajectory);
 }
 
-void OneDPath2InteriorPoint::onKey(unsigned int key)
+void OneDPath2InteriorPoint::onKey(unsigned char key)
 {
 	switch (key)
 	{
-	case VK_SPACE:
+	case ' ':
 		moveTowardFeasibility(g_trajectory);
 		repaint();
 		break;
 
-	case VK_END:
-		g_trajectory.var[duration0] -= 0.1;
-		repaint();
-		break;
-
-	case VK_HOME:
-		g_trajectory.var[duration0] += 0.1;
-		repaint();
-		break;
-
-	case VK_NEXT:
-		g_trajectory.var[duration1] -= 0.1;
-		repaint();
-		break;
-
-	case VK_PRIOR:
-		g_trajectory.var[duration1] += 0.1;
-		repaint();
-		break;
-
-	case VK_LEFT:
-		g_trajectory.var[vel1X] -= 1;
-		repaint();
-		break;
-
-	case VK_RIGHT:
-		g_trajectory.var[vel1X] += 1;
-		repaint();
-		break;
-
-	case VK_UP:
-		g_trajectory.var[pos1X] += 10;
-		repaint();
-		break;
-
-	case VK_DOWN:
-		g_trajectory.var[pos1X] -= 10;
-		repaint();
-		break;
-
-	case 'I':
+	case 'i':
 		initDefault(g_trajectory);
 		repaint();
 		break;
 
-	case 'N':
+	case 'n':
 		moveInteriorPoint(g_trajectory);
 		repaint();
 		break;
 
-	case 'S':
+	case 's':
 		printState(g_trajectory);
+		break;
+	}
+}
+
+void OneDPath2InteriorPoint::onSpecialKey(int key)
+{
+	switch (key)
+	{
+	case GLUT_KEY_END:
+		g_trajectory.var[duration0] -= 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_HOME:
+		g_trajectory.var[duration0] += 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_PAGE_DOWN:
+		g_trajectory.var[duration1] -= 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_PAGE_UP:
+		g_trajectory.var[duration1] += 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_LEFT:
+		g_trajectory.var[vel1X] -= 1;
+		repaint();
+		break;
+
+	case GLUT_KEY_RIGHT:
+		g_trajectory.var[vel1X] += 1;
+		repaint();
+		break;
+
+	case GLUT_KEY_UP:
+		g_trajectory.var[pos1X] += 10;
+		repaint();
+		break;
+
+	case GLUT_KEY_DOWN:
+		g_trajectory.var[pos1X] -= 10;
+		repaint();
 		break;
 	}
 }
@@ -569,22 +573,22 @@ void moveTowardFeasibility(Trajectory2 & traj)
 			cm[constraintIndex[j]] = m[j];
 	}
 
-	debug_printf("\nConstraints:\n");
+	printf("\nConstraints:\n");
 
 	for (size_t i = 0; i < numConstraints; ++i)
 	{
-		debug_printf("%2u:", i);
+		printf("%2u:", i);
 		for (size_t j = 0; j < numVars; ++j)
 		{
-			debug_printf(" %g", constraintGradient(i, j));
+			printf(" %g", constraintGradient(i, j));
 		}
-		debug_printf(" | %g x %g\n", constraintError[i], cm[i]);
+		printf(" | %g x %g\n", constraintError[i], cm[i]);
 	}
 
-	debug_printf("   ");
+	printf("   ");
 	for (size_t i = 0; i < numVars; ++i)
-		debug_printf(" %g", dX[i]);
-	debug_printf("\n");
+		printf(" %g", dX[i]);
+	printf("\n");
 
 	for (size_t i = 0; i < numVars; ++i)
 		traj.var[i] += dX[i];
@@ -732,7 +736,7 @@ void moveInteriorPoint(Trajectory2 & traj)
 
 	// Print the final result
 
-	debug_printf("\nFull matrix:\n");
+	printf("\nFull matrix:\n");
 	for (size_t row = 0; row < c; ++row)
 	{
 		Matrix<double, 1, c> x = m.row(row);
@@ -743,12 +747,12 @@ void moveInteriorPoint(Trajectory2 & traj)
 		for (size_t col = 0; col < c; ++col)
 		{
 			int y = std::min(9, int(ceil(fabs(x(col)) * 10.0)));
-			debug_printf("%c ", (y == 0) ? ' ' : (y + '0'));
+			printf("%c ", (y == 0) ? ' ' : (y + '0'));
 		}
 
-		debug_printf("| ");
+		printf("| ");
 
-		debug_printf("%g\n", rhs);
+		printf("%g\n", rhs);
 	}
 
 	// Solve the system for the step to try to eliminate the residual
@@ -756,17 +760,17 @@ void moveInteriorPoint(Trajectory2 & traj)
 	Matrix<double, c, 1> d;
 	d = m.colPivHouseholderQr().solve(-r);
 
-	debug_printf("Current state:\n");
+	printf("Current state:\n");
 	for (size_t i = 0; i < c; ++i)
 	{
-		debug_printf("%s%g", (i > 0) ? " " : "", traj.var[i]);
+		printf("%s%g", (i > 0) ? " " : "", traj.var[i]);
 	}
-	debug_printf("\nStep for perturbation %g:\n", perturbation);
+	printf("\nStep for perturbation %g:\n", perturbation);
 	for (size_t i = 0; i < c; ++i)
 	{
-		debug_printf("%s%g", (i > 0) ? " " : "", d(i));
+		printf("%s%g", (i > 0) ? " " : "", d(i));
 	}
-	debug_printf("\n");
+	printf("\n");
 
 	// Backtrack to a point where none of the Lagrange multipliers are hitting zero
 
@@ -827,23 +831,23 @@ void printConstraints(const Trajectory2 & traj)
 	Matrix<double, numVars, 1> obj;
 	obj << 0, -1, -1;
 
-	debug_printf("[");
+	printf("[");
 	for (size_t i = 0; i < numVars; ++i)
-		debug_printf("%s%s", (i > 0) ? " " : "", varName[i]);
+		printf("%s%s", (i > 0) ? " " : "", varName[i]);
 
-	debug_printf("] [");
+	printf("] [");
 	for (size_t i = 0; i < numVars; ++i)
 	{
-		debug_printf("%s[", (i > 0) ? " " : "");
+		printf("%s[", (i > 0) ? " " : "");
 
 		for (size_t j = 0; j < numVars; ++j)
 		{
-			debug_printf("%s%s/%s", (j > 0) ? " " : "", varName[i], varName[j]);
+			printf("%s%s/%s", (j > 0) ? " " : "", varName[i], varName[j]);
 		}
 
-		debug_printf("]");
+		printf("]");
 	}
-	debug_printf("]\n");
+	printf("]\n");
 
 	for (size_t i = 0; i < numConstraints; ++i)
 	{
@@ -855,48 +859,48 @@ void printConstraints(const Trajectory2 & traj)
 
 		double d = obj.dot(deriv);
 
-		debug_printf("%c%u:", (error > 0) ? '*' : ' ', i);
+		printf("%c%u:", (error > 0) ? '*' : ' ', i);
 
-		debug_printf(" error=%g derivs=[", error);
+		printf(" error=%g derivs=[", error);
 
 		for (size_t j = 0; j < numVars; ++j)
 		{
-			debug_printf("%s%g", (j > 0) ? " " : "", deriv(j));
+			printf("%s%g", (j > 0) ? " " : "", deriv(j));
 		}
 
-		debug_printf("] second=[");
+		printf("] second=[");
 		
 		for (size_t j = 0; j < numVars; ++j)
 		{
-			debug_printf("%s[", (j > 0) ? " " : "");
+			printf("%s[", (j > 0) ? " " : "");
 
 			for (size_t k = 0; k < numVars; ++k)
 			{
-				debug_printf("%s%g", (k > 0) ? " " : "", seconds(j, k));
+				printf("%s%g", (k > 0) ? " " : "", seconds(j, k));
 			}
 
-			debug_printf("]");
+			printf("]");
 		}
 
-		debug_printf("] dot=%g\n", d);
+		printf("] dot=%g\n", d);
 	}
 }
 
 void printState(const Trajectory2 & traj)
 {
-	debug_printf("\nNode 0: pos=%g vel=%g\n", traj.var[pos0X], traj.var[vel0X]);
-	debug_printf("Node 1: pos=%g vel=%g\n", traj.var[pos1X], traj.var[vel1X]);
-	debug_printf("Node 2: pos=%g vel=%g\n", traj.var[pos2X], traj.var[vel2X]);
-	debug_printf("Duration 0: %g\n", traj.var[duration0]);
-	debug_printf("Duration 1: %g\n", traj.var[duration1]);
-	debug_printf("Constraint Multipliers:");
+	printf("\nNode 0: pos=%g vel=%g\n", traj.var[pos0X], traj.var[vel0X]);
+	printf("Node 1: pos=%g vel=%g\n", traj.var[pos1X], traj.var[vel1X]);
+	printf("Node 2: pos=%g vel=%g\n", traj.var[pos2X], traj.var[vel2X]);
+	printf("Duration 0: %g\n", traj.var[duration0]);
+	printf("Duration 1: %g\n", traj.var[duration1]);
+	printf("Constraint Multipliers:");
 	for (size_t i = 0; i < numConstraints; ++i)
 	{
-		debug_printf(" %g", traj.var[c0 + i]);
+		printf(" %g", traj.var[c0 + i]);
 	}
-	debug_printf("\n");
-	debug_printf("Surrogate gap: %g\n", surrogateDualityGap(traj));
-	debug_printf("Constraints:\n");
+	printf("\n");
+	printf("Surrogate gap: %g\n", surrogateDualityGap(traj));
+	printf("Constraints:\n");
 	printConstraints(traj);
 }
 

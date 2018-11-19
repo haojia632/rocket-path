@@ -3,9 +3,7 @@
 #include "draw.h"
 #include "vec.h"
 
-#include <windows.h>
-#include <gl/gl.h>
-#include <gl/glu.h>
+#include <GL/glut.h>
 
 #undef min
 #undef max
@@ -145,72 +143,32 @@ void FixPointPath::init()
 	g_selectedNode = numNodes;
 }
 
-void FixPointPath::onKey(unsigned int key)
+void FixPointPath::onKey(unsigned char key)
 {
 	switch (key)
 	{
-	case VK_SPACE:
+	case ' ':
 		moveTowardFeasibility(g_trajectory);
 		repaint();
 		break;
 
-	case VK_END:
-		g_trajectory.var[duration0] -= 0.1;
-		repaint();
-		break;
-
-	case VK_HOME:
-		g_trajectory.var[duration0] += 0.1;
-		repaint();
-		break;
-
-	case VK_NEXT:
-		g_trajectory.var[duration1] -= 0.1;
-		repaint();
-		break;
-
-	case VK_PRIOR:
-		g_trajectory.var[duration1] += 0.1;
-		repaint();
-		break;
-
-	case VK_LEFT:
-		g_trajectory.var[vel1X] -= 1;
-		repaint();
-		break;
-
-	case VK_RIGHT:
-		g_trajectory.var[vel1X] += 1;
-		repaint();
-		break;
-
-	case VK_UP:
-		g_trajectory.var[vel1Y] -= 1;
-		repaint();
-		break;
-
-	case VK_DOWN:
-		g_trajectory.var[vel1Y] += 1;
-		repaint();
-		break;
-
-	case 'C':
+	case 'c':
 		descendObjectiveConstrained(g_trajectory);
 		repaint();
 		break;
 
-	case 'D':
+	case 'd':
 		descendObjective(g_trajectory);
 		repaint();
 		break;
 
-	case 'I':
+	case 'i':
 		init();
 		updateHighlight(g_mouse_x, g_mouse_y);
 		repaint();
 		break;
 
-	case 'P':
+	case 'p':
 		{
 			double error[numConstraints];
 			getConstraintErrors(g_trajectory, error);
@@ -222,15 +180,15 @@ void FixPointPath::onKey(unsigned int key)
 					errorAccum += sqr(e);
 				}
 			}
-			debug_printf("Constraint errors: %g %g %g %g --> %g\n", error[0], error[1], error[2], error[3], errorAccum);
+			printf("Constraint errors: %g %g %g %g --> %g\n", error[0], error[1], error[2], error[3], errorAccum);
 		}
 		break;
 
-	case 'S':
+	case 's':
 		printState(g_trajectory);
 		break;
 
-	case 'Z':
+	case 'z':
 		moveInConstrainedGradientDir(g_trajectory);
 		repaint();
 		break;
@@ -262,6 +220,52 @@ void FixPointPath::onKey(unsigned int key)
 
 	case '6':
 		minimizeAcceleration2(g_trajectory);
+		repaint();
+		break;
+	}
+}
+
+void FixPointPath::onSpecialKey(int key)
+{
+	switch (key)
+	{
+	case GLUT_KEY_END:
+		g_trajectory.var[duration0] -= 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_HOME:
+		g_trajectory.var[duration0] += 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_PAGE_DOWN:
+		g_trajectory.var[duration1] -= 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_PAGE_UP:
+		g_trajectory.var[duration1] += 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_LEFT:
+		g_trajectory.var[vel1X] -= 1;
+		repaint();
+		break;
+
+	case GLUT_KEY_RIGHT:
+		g_trajectory.var[vel1X] += 1;
+		repaint();
+		break;
+
+	case GLUT_KEY_UP:
+		g_trajectory.var[vel1Y] -= 1;
+		repaint();
+		break;
+
+	case GLUT_KEY_DOWN:
+		g_trajectory.var[vel1Y] += 1;
 		repaint();
 		break;
 	}
@@ -503,7 +507,7 @@ void moveTowardFeasibility(Trajectory & traj)
 	double constraintError[numConstraints];
 	getConstraintErrors(traj, constraintError);
 
-	debug_printf("\nConstraint errors: %g %g %g %g\n",
+	printf("\nConstraint errors: %g %g %g %g\n",
 		max(0.0, constraintError[0]),
 		max(0.0, constraintError[1]),
 		max(0.0, constraintError[2]),
@@ -522,7 +526,7 @@ void moveTowardFeasibility(Trajectory & traj)
 
 	if (n == 0)
 	{
-		debug_printf("No constraints violated\n");
+		printf("No constraints violated\n");
 		return;
 	}
 
@@ -546,14 +550,14 @@ void moveTowardFeasibility(Trajectory & traj)
 		}
 	}
 
-	debug_printf("Constraint gradients:\n");
+	printf("Constraint gradients:\n");
 	for (size_t j = 0; j < n; ++j)
 	{
 		for (size_t i = 0; i < 4; ++i)
 		{
-			debug_printf(" %g", g(j, i));
+			printf(" %g", g(j, i));
 		}
-		debug_printf("\n");
+		printf("\n");
 	}
 
 	// Compute multipliers for the gradients of the violated constraints that will add up to remove the error
@@ -570,12 +574,12 @@ void moveTowardFeasibility(Trajectory & traj)
 		cm[constraintIndex[j]] = m[j];
 	}
 
-	debug_printf("Multipliers: %g %g %g %g\n", cm[0], cm[1], cm[2], cm[3]);
+	printf("Multipliers: %g %g %g %g\n", cm[0], cm[1], cm[2], cm[3]);
 
 	Vector4d x = Vector4d::Zero();
 	x -= g.transpose() * m;
 
-	debug_printf("Move: %g %g %g %g\n", x[0], x[1], x[2], x[3]);
+	printf("Move: %g %g %g %g\n", x[0], x[1], x[2], x[3]);
 
 	traj.var[0] += x[0];
 	traj.var[1] += x[1];
@@ -603,7 +607,7 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 	constraintGradient2(traj, constraintGradient[2]);
 	constraintGradient3(traj, constraintGradient[3]);
 
-	debug_printf("\n");
+	printf("\n");
 
 	size_t n = 0;
 	size_t constraintIndex[numConstraints];
@@ -613,7 +617,7 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 		for (size_t j = 0; j < 4; ++j)
 			d += constraintGradient[i][j] * obj[j];
 
-		debug_printf("Constraint %u: dot=%g, err=%g\n", i, d, constraintError[i]);
+		printf("Constraint %u: dot=%g, err=%g\n", i, d, constraintError[i]);
 
 		if (constraintError[i] <= -1.0e-4)
 			continue;
@@ -638,15 +642,15 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 			}
 		}
 
-		debug_printf("Constraint gradients:\n");
+		printf("Constraint gradients:\n");
 		for (size_t j = 0; j < n; ++j)
 		{
-			debug_printf("%u:", constraintIndex[j]);
+			printf("%u:", constraintIndex[j]);
 			for (size_t i = 0; i < 4; ++i)
 			{
-				debug_printf(" %g", g(j, i));
+				printf(" %g", g(j, i));
 			}
-			debug_printf("\n");
+			printf("\n");
 		}
 
 		MatrixXd m = g * g.transpose();
@@ -661,15 +665,15 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 
 		double d = obj.norm();
 
-		debug_printf("Constraint multipliers: %g %g %g %g\n", lm[0], lm[1], lm[2], lm[3]);
-		debug_printf("Constraint scale: %g\n", d);
+		printf("Constraint multipliers: %g %g %g %g\n", lm[0], lm[1], lm[2], lm[3]);
+		printf("Constraint scale: %g\n", d);
 
 		obj /= max(1.0 / 1024.0, d);
 	}
 
 	// Take a step in the constrained objective direction
 
-	debug_printf("Constrained objective dir: %g %g %g %g\n", obj[0], obj[1], obj[2], obj[3]);
+	printf("Constrained objective dir: %g %g %g %g\n", obj[0], obj[1], obj[2], obj[3]);
 
 	traj.var[0] += obj[0];
 	traj.var[1] += obj[1];
@@ -682,11 +686,11 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 
 void printState(const Trajectory & traj)
 {
-	debug_printf("\nNode 0: pos=[%g %g] vel=[%g %g]\n", g_trajectory.var[pos0X], g_trajectory.var[pos0Y], g_trajectory.var[vel0X], g_trajectory.var[vel0Y]);
-	debug_printf("Node 1: pos=[%g %g] vel=[%g %g]\n", g_trajectory.var[pos1X], g_trajectory.var[pos1Y], g_trajectory.var[vel1X], g_trajectory.var[vel1Y]);
-	debug_printf("Node 2: pos=[%g %g] vel=[%g %g]\n", g_trajectory.var[pos2X], g_trajectory.var[pos2Y], g_trajectory.var[vel2X], g_trajectory.var[vel2Y]);
-	debug_printf("Duration 0: %g\n", g_trajectory.var[duration0]);
-	debug_printf("Duration 1: %g\n", g_trajectory.var[duration1]);
+	printf("\nNode 0: pos=[%g %g] vel=[%g %g]\n", g_trajectory.var[pos0X], g_trajectory.var[pos0Y], g_trajectory.var[vel0X], g_trajectory.var[vel0Y]);
+	printf("Node 1: pos=[%g %g] vel=[%g %g]\n", g_trajectory.var[pos1X], g_trajectory.var[pos1Y], g_trajectory.var[vel1X], g_trajectory.var[vel1Y]);
+	printf("Node 2: pos=[%g %g] vel=[%g %g]\n", g_trajectory.var[pos2X], g_trajectory.var[pos2Y], g_trajectory.var[vel2X], g_trajectory.var[vel2Y]);
+	printf("Duration 0: %g\n", g_trajectory.var[duration0]);
+	printf("Duration 1: %g\n", g_trajectory.var[duration1]);
 
 	double err[4];
 	getConstraintErrors(g_trajectory, err);
@@ -699,7 +703,7 @@ void printState(const Trajectory & traj)
 
 	for (size_t i = 0; i < 4; ++i)
 	{
-		debug_printf("%u: %g %g %g %g = %g\n", i, constraintGradient[i][0], constraintGradient[i][1], constraintGradient[i][2], constraintGradient[i][3], err[i]);
+		printf("%u: %g %g %g %g = %g\n", i, constraintGradient[i][0], constraintGradient[i][1], constraintGradient[i][2], constraintGradient[i][3], err[i]);
 	}
 }
 

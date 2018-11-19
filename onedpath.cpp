@@ -2,9 +2,7 @@
 
 #include "draw.h"
 
-#include <windows.h>
-#include <gl/gl.h>
-#include <gl/glu.h>
+#include <GL/glut.h>
 
 #undef min
 #undef max
@@ -139,65 +137,25 @@ void OneDPath::init()
 	g_trajectory.var[duration1] = 3.4641;
 }
 
-void OneDPath::onKey(unsigned int key)
+void OneDPath::onKey(unsigned char key)
 {
 	switch (key)
 	{
-	case VK_SPACE:
+	case ' ':
 		moveTowardFeasibility(g_trajectory);
 		repaint();
 		break;
 
-	case VK_END:
-		g_trajectory.var[duration0] -= 0.1;
-		repaint();
-		break;
-
-	case VK_HOME:
-		g_trajectory.var[duration0] += 0.1;
-		repaint();
-		break;
-
-	case VK_NEXT:
-		g_trajectory.var[duration1] -= 0.1;
-		repaint();
-		break;
-
-	case VK_PRIOR:
-		g_trajectory.var[duration1] += 0.1;
-		repaint();
-		break;
-
-	case VK_LEFT:
-		g_trajectory.var[vel1X] -= 1;
-		repaint();
-		break;
-
-	case VK_RIGHT:
-		g_trajectory.var[vel1X] += 1;
-		repaint();
-		break;
-
-	case VK_UP:
-		g_trajectory.var[pos1X] += 10;
-		repaint();
-		break;
-
-	case VK_DOWN:
-		g_trajectory.var[pos1X] -= 10;
-		repaint();
-		break;
-
-	case 'I':
+	case 'i':
 		init();
 		repaint();
 		break;
 
-	case 'S':
+	case 's':
 		printState(g_trajectory);
 		break;
 
-	case 'Z':
+	case 'z':
 		moveInConstrainedGradientDir(g_trajectory);
 		repaint();
 		break;
@@ -223,6 +181,52 @@ void OneDPath::onKey(unsigned int key)
 	case '4':
 		fixupConstraint(g_trajectory, constraints[6]);
 		fixupConstraint(g_trajectory, constraints[7]);
+		repaint();
+		break;
+	}
+}
+
+void OneDPath::onSpecialKey(int key)
+{
+	switch (key)
+	{
+	case GLUT_KEY_END:
+		g_trajectory.var[duration0] -= 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_HOME:
+		g_trajectory.var[duration0] += 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_PAGE_DOWN:
+		g_trajectory.var[duration1] -= 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_PAGE_UP:
+		g_trajectory.var[duration1] += 0.1;
+		repaint();
+		break;
+
+	case GLUT_KEY_LEFT:
+		g_trajectory.var[vel1X] -= 1;
+		repaint();
+		break;
+
+	case GLUT_KEY_RIGHT:
+		g_trajectory.var[vel1X] += 1;
+		repaint();
+		break;
+
+	case GLUT_KEY_UP:
+		g_trajectory.var[pos1X] += 10;
+		repaint();
+		break;
+
+	case GLUT_KEY_DOWN:
+		g_trajectory.var[pos1X] -= 10;
 		repaint();
 		break;
 	}
@@ -478,22 +482,22 @@ void moveTowardFeasibility(Trajectory & traj)
 			cm[constraintIndex[j]] = m[j];
 	}
 
-	debug_printf("\nConstraints:\n");
+	printf("\nConstraints:\n");
 
 	for (size_t i = 0; i < numConstraints; ++i)
 	{
-		debug_printf("%2u:", i);
+		printf("%2u:", i);
 		for (size_t j = 0; j < numVars; ++j)
 		{
-			debug_printf(" %g", constraintGradient(i, j));
+			printf(" %g", constraintGradient(i, j));
 		}
-		debug_printf(" | %g x %g\n", constraintError[i], cm[i]);
+		printf(" | %g x %g\n", constraintError[i], cm[i]);
 	}
 
-	debug_printf("   ");
+	printf("   ");
 	for (size_t i = 0; i < numVars; ++i)
-		debug_printf(" %g", dX[i]);
-	debug_printf("\n");
+		printf(" %g", dX[i]);
+	printf("\n");
 
 	for (size_t i = 0; i < numVars; ++i)
 		traj.var[i] += dX[i];
@@ -514,7 +518,7 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 	Matrix<double, numConstraints, numVars> constraintGradient;
 	evalConstraints(traj, constraintError, constraintGradient);
 
-	debug_printf("\n");
+	printf("\n");
 
 	size_t n = 0;
 	size_t constraintIndex[numConstraints];
@@ -524,7 +528,7 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 		for (size_t j = 0; j < numVars; ++j)
 			d += constraintGradient(i, j) * obj[j];
 
-		debug_printf("Constraint %u: dot=%g, err=%g\n", i, d, constraintError[i]);
+		printf("Constraint %u: dot=%g, err=%g\n", i, d, constraintError[i]);
 
 		if (constraintError[i] <= -1.0e-4)
 			continue;
@@ -549,15 +553,15 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 			}
 		}
 
-		debug_printf("Constraints:\n");
+		printf("Constraints:\n");
 		for (size_t j = 0; j < n; ++j)
 		{
-			debug_printf("%2u:", constraintIndex[j]);
+			printf("%2u:", constraintIndex[j]);
 			for (size_t i = 0; i < numVars; ++i)
 			{
-				debug_printf(" %g", g(j, i));
+				printf(" %g", g(j, i));
 			}
-			debug_printf("\n");
+			printf("\n");
 		}
 
 		MatrixXd m = g * g.transpose();
@@ -573,21 +577,21 @@ void moveInConstrainedGradientDir(Trajectory & traj)
 
 		double d = obj.norm();
 
-		debug_printf("Constraint multipliers:");
+		printf("Constraint multipliers:");
 		for (size_t i = 0; i < numConstraints; ++i)
-			debug_printf(" %g", lm[i]);
-		debug_printf("\n");
-		debug_printf("Constraint scale: %g\n", d);
+			printf(" %g", lm[i]);
+		printf("\n");
+		printf("Constraint scale: %g\n", d);
 
 		obj *= std::min(32768.0, 4.0 / d);
 	}
 
 	// Take a step in the constrained objective direction
 
-	debug_printf("Constrained objective dir:");
+	printf("Constrained objective dir:");
 	for (size_t i = 0; i < numVars; ++i)
-		debug_printf(" %g", obj[i]);
-	debug_printf("\n");
+		printf(" %g", obj[i]);
+	printf("\n");
 
 	for (size_t i = 0; i < numVars; ++i)
 		traj.var[i] += obj[i];
@@ -619,28 +623,28 @@ void printConstraints(const Matrix<double, numConstraints, 1> & error, const Mat
 	{
 		double d = obj.dot(deriv.row(i));
 
-		debug_printf("%c%u:", (error[i] > 0) ? '*' : ' ', i);
+		printf("%c%u:", (error[i] > 0) ? '*' : ' ', i);
 		for (size_t j = 0; j < numVars; ++j)
 		{
-			debug_printf(" %g", deriv(i, j));
+			printf(" %g", deriv(i, j));
 		}
-		debug_printf(" | %g (dot %g)\n", error[i], d);
+		printf(" | %g (dot %g)\n", error[i], d);
 	}
 }
 
 void printState(const Trajectory & traj)
 {
-	debug_printf("\nNode 0: pos=%g vel=%g\n", g_trajectory.var[pos0X], g_trajectory.var[vel0X]);
-	debug_printf("Node 1: pos=%g vel=%g\n", g_trajectory.var[pos1X], g_trajectory.var[vel1X]);
-	debug_printf("Node 2: pos=%g vel=%g\n", g_trajectory.var[pos2X], g_trajectory.var[vel2X]);
-	debug_printf("Duration 0: %g\n", g_trajectory.var[duration0]);
-	debug_printf("Duration 1: %g\n", g_trajectory.var[duration1]);
+	printf("\nNode 0: pos=%g vel=%g\n", g_trajectory.var[pos0X], g_trajectory.var[vel0X]);
+	printf("Node 1: pos=%g vel=%g\n", g_trajectory.var[pos1X], g_trajectory.var[vel1X]);
+	printf("Node 2: pos=%g vel=%g\n", g_trajectory.var[pos2X], g_trajectory.var[vel2X]);
+	printf("Duration 0: %g\n", g_trajectory.var[duration0]);
+	printf("Duration 1: %g\n", g_trajectory.var[duration1]);
 
 	Matrix<double, numConstraints, 1> constraintError;
 	Matrix<double, numConstraints, numVars> constraintGradient;
 	evalConstraints(g_trajectory, constraintError, constraintGradient);
 
-	debug_printf("Constraints:\n");
+	printf("Constraints:\n");
 	printConstraints(constraintError, constraintGradient);
 }
 
