@@ -1,4 +1,4 @@
-#include "onedpath_ip.h"
+#include "onedpath2_ip.h"
 
 #include "draw.h"
 
@@ -14,7 +14,7 @@
 
 using namespace Eigen;
 
-enum V
+enum V2
 {
 	// variables
 
@@ -24,14 +24,10 @@ enum V
 
 	// constraint multipliers (Lagrange multipliers)
 
-	c0, // segment 0 initial acceleration minimum
-	c1, // segment 0 initial acceleration maximum
-	c2, // segment 0 final acceleration minimum
-	c3, // segment 0 final acceleration maximum
-	c4, // segment 1 initial acceleration minimum
-	c5, // segment 1 initial acceleration maximum
-	c6, // segment 1 final acceleration minimum
-	c7, // segment 1 final acceleration maximum
+	c0, // segment 0 initial acceleration
+	c1, // segment 0 final acceleration
+	c2, // segment 1 initial acceleration
+	c3, // segment 1 final acceleration
 
 	// constants
 
@@ -41,40 +37,39 @@ enum V
 	pos2X,
 	vel2X,
 
-	M
+	M2
 };
 
 static const size_t numVars = 3;
 
-struct Trajectory
+static const char * varName[numVars] =
 {
-	double var[M]; // variables and constants
+	"v1",
+	"t0",
+	"t1",
 };
 
-static Trajectory g_trajectory;
+struct Trajectory2
+{
+	double var[M2]; // variables and constants
+};
+
+static Trajectory2 g_trajectory;
 
 const double accelerationLimit = 100.0;
 
-typedef void (ConstraintFirstDerivFunc)(const Trajectory &, double & error, Matrix<double, numVars, 1> & deriv);
-typedef void (ConstraintSecondDerivFunc)(const Trajectory &, Matrix<double, numVars, numVars> &);
+typedef void (ConstraintFirstDerivFunc)(const Trajectory2 &, double & error, Matrix<double, numVars, 1> & deriv);
+typedef void (ConstraintSecondDerivFunc)(const Trajectory2 &, Matrix<double, numVars, numVars> &);
 
 static ConstraintFirstDerivFunc evalConstraint0;
 static ConstraintFirstDerivFunc evalConstraint1;
 static ConstraintFirstDerivFunc evalConstraint2;
 static ConstraintFirstDerivFunc evalConstraint3;
-static ConstraintFirstDerivFunc evalConstraint4;
-static ConstraintFirstDerivFunc evalConstraint5;
-static ConstraintFirstDerivFunc evalConstraint6;
-static ConstraintFirstDerivFunc evalConstraint7;
 
 static ConstraintSecondDerivFunc evalConstraintSecondDeriv0;
 static ConstraintSecondDerivFunc evalConstraintSecondDeriv1;
 static ConstraintSecondDerivFunc evalConstraintSecondDeriv2;
 static ConstraintSecondDerivFunc evalConstraintSecondDeriv3;
-static ConstraintSecondDerivFunc evalConstraintSecondDeriv4;
-static ConstraintSecondDerivFunc evalConstraintSecondDeriv5;
-static ConstraintSecondDerivFunc evalConstraintSecondDeriv6;
-static ConstraintSecondDerivFunc evalConstraintSecondDeriv7;
 
 static ConstraintFirstDerivFunc * constraints[] =
 {
@@ -82,10 +77,6 @@ static ConstraintFirstDerivFunc * constraints[] =
 	evalConstraint1,
 	evalConstraint2,
 	evalConstraint3,
-	evalConstraint4,
-	evalConstraint5,
-	evalConstraint6,
-	evalConstraint7,
 };
 
 static ConstraintSecondDerivFunc * constraintSecondDerivs[] =
@@ -94,10 +85,6 @@ static ConstraintSecondDerivFunc * constraintSecondDerivs[] =
 	evalConstraintSecondDeriv1,
 	evalConstraintSecondDeriv2,
 	evalConstraintSecondDeriv3,
-	evalConstraintSecondDeriv4,
-	evalConstraintSecondDeriv5,
-	evalConstraintSecondDeriv6,
-	evalConstraintSecondDeriv7,
 };
 
 static const size_t numConstraints = sizeof(constraints) / sizeof(constraints[0]);
@@ -141,22 +128,22 @@ static void evalAccelSecondDerivFinal(
 	double & sTV0,
 	double & sTV1);
 static void evalConstraints(
-	const Trajectory &,
+	const Trajectory2 &,
 	Matrix<double, numConstraints, 1> & error,
 	Matrix<double, numConstraints, numVars> & deriv);
 
-static void moveTowardFeasibility(Trajectory &);
-static void trajectoryStep(const Trajectory &, const Matrix<double, numVars + numConstraints, 1> & dir, double scale, Trajectory &);
-static bool constraintsSatisfied(const Trajectory &);
-static void residual(const Trajectory &, double perturbation, Matrix<double, numVars + numConstraints, 1> &);
-static double residualNorm(const Trajectory &, double perturbation);
-static double surrogateDualityGap(const Trajectory &);
-static void moveInteriorPoint(Trajectory &);
+static void moveTowardFeasibility(Trajectory2 &);
+static void trajectoryStep(const Trajectory2 &, const Matrix<double, numVars + numConstraints, 1> & dir, double scale, Trajectory2 &);
+static bool constraintsSatisfied(const Trajectory2 &);
+static void residual(const Trajectory2 &, double perturbation, Matrix<double, numVars + numConstraints, 1> &);
+static double residualNorm(const Trajectory2 &, double perturbation);
+static double surrogateDualityGap(const Trajectory2 &);
+static void moveInteriorPoint(Trajectory2 &);
 
-static void printConstraints(const Trajectory & traj);
-static void printState(const Trajectory &);
-static void plotTrajectory(const Trajectory &);
-static void plotAcceleration(const Trajectory &);
+static void printConstraints(const Trajectory2 &);
+static void printState(const Trajectory2 &);
+static void plotTrajectory(const Trajectory2 &);
+static void plotAcceleration(const Trajectory2 &);
 
 inline double sqr(double x)
 {
@@ -168,39 +155,15 @@ inline double cube(double x)
 	return x * x * x;
 }
 
-OneDPathInteriorPoint::OneDPathInteriorPoint()
+OneDPath2InteriorPoint::OneDPath2InteriorPoint()
 {
 }
 
-OneDPathInteriorPoint::~OneDPathInteriorPoint()
+OneDPath2InteriorPoint::~OneDPath2InteriorPoint()
 {
 }
 
-static void initStuck(Trajectory & traj)
-{
-	traj.var[pos0X] = 0;
-	traj.var[vel0X] = 0;
-
-	traj.var[pos1X] = 350;
-	traj.var[vel1X] = -9.66825;
-
-	traj.var[pos2X] = 400;
-	traj.var[vel2X] = 0;
-
-	traj.var[duration0] = 4.78149;
-	traj.var[duration1] = 4.38968;
-
-	traj.var[c0] = 5.45948e-07;
-	traj.var[c1] = 0.00310769;
-	traj.var[c2] = 3.49109e-08;
-	traj.var[c3] = 0.00281523;
-	traj.var[c4] = 8.39344e-07;
-	traj.var[c5] = 1.76937e-06;
-	traj.var[c6] = 0.0187559;
-	traj.var[c7] = 8.42414e-07;
-}
-
-static void initDefault(Trajectory & traj)
+static void initDefault(Trajectory2 & traj)
 {
 	traj.var[pos0X] = 0;
 	traj.var[vel0X] = 0;
@@ -214,27 +177,30 @@ static void initDefault(Trajectory & traj)
 	traj.var[duration0] = 3.5;
 	traj.var[duration1] = 3.5;
 
+#if 1
+	traj.var[c0] = 1.0;
+	traj.var[c1] = 1.0;
+	traj.var[c2] = 1.0;
+	traj.var[c3] = 1.0;
+#else
 	// Constraint multipliers start at 1/error
 
 	for (size_t i = 0; i < numConstraints; ++i)
 	{
-#if 0
 		double error;
 		Matrix<double, numVars, 1> grad;
 		(*constraints[i])(traj, error, grad);
 		traj.var[c0 + i] = -1.0 / error;
-#else
-		traj.var[c0 + i] = 1.0;
-#endif
 	}
+#endif
 }
 
-void OneDPathInteriorPoint::init()
+void OneDPath2InteriorPoint::init()
 {
 	initDefault(g_trajectory);
 }
 
-void OneDPathInteriorPoint::onKey(unsigned int key)
+void OneDPath2InteriorPoint::onKey(unsigned int key)
 {
 	switch (key)
 	{
@@ -288,11 +254,6 @@ void OneDPathInteriorPoint::onKey(unsigned int key)
 		repaint();
 		break;
 
-	case 'J':
-		initStuck(g_trajectory);
-		repaint();
-		break;
-
 	case 'N':
 		moveInteriorPoint(g_trajectory);
 		repaint();
@@ -314,7 +275,7 @@ static void unitSquare(double xMin, double xMax, double yMin, double yMax)
 	glScaled(2.0 * (xMax - xMin) / sx, 2.0 * (yMax - yMin) / sy, 1);
 }
 
-void OneDPathInteriorPoint::onDraw()
+void OneDPath2InteriorPoint::onDraw()
 {
 	const double margin = 10.0;
 	const double sx = windowSizeX();
@@ -338,15 +299,15 @@ void OneDPathInteriorPoint::onDraw()
 	plotAcceleration(g_trajectory);
 }
 
-void OneDPathInteriorPoint::onMouseMove(int x, int y)
+void OneDPath2InteriorPoint::onMouseMove(int x, int y)
 {
 }
 
-void OneDPathInteriorPoint::onMouseDown()
+void OneDPath2InteriorPoint::onMouseDown()
 {
 }
 
-void OneDPathInteriorPoint::onMouseUp()
+void OneDPath2InteriorPoint::onMouseUp()
 {
 }
 
@@ -432,191 +393,119 @@ void evalAccelSecondDerivFinal(
 	sTV1 = -4.0 / sqr(t);
 }
 
-void evalConstraint0(const Trajectory & traj, double & error, Matrix<double, numVars, 1> & deriv)
+void evalConstraint0(const Trajectory2 & traj, double & error, Matrix<double, numVars, 1> & deriv)
 {
 	double a, dAdT, dAdV0, dAdV1;
 	evalAccelInit(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
-	error = -a - accelerationLimit;
+	error = (sqr(a) - sqr(accelerationLimit)) / 2.0;
 
-	deriv[duration0] = -dAdT;
+	deriv[duration0] = a * dAdT;
 	deriv[duration1] = 0;
-	deriv[vel1X] = -dAdV1;
+	deriv[vel1X] = a * dAdV1;
 }
 
-void evalConstraintSecondDeriv0(const Trajectory & traj, Matrix<double, numVars, numVars> & secondDeriv)
+void evalConstraintSecondDeriv0(const Trajectory2 & traj, Matrix<double, numVars, numVars> & secondDeriv)
 {
-	double sTT, sTV0, sTV1;
-	evalAccelSecondDerivInit(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], sTT, sTV0, sTV1);
+	/*
 
-	secondDeriv.setZero();
-	secondDeriv(duration0, duration0) = -sTT;
-	secondDeriv(duration0, vel1X) = -sTV1;
-	secondDeriv(vel1X, duration0) = -sTV1;
-}
+	1/2 * f(x, y, z)^2
 
-void evalConstraint1(const Trajectory & traj, double & error, Matrix<double, numVars, 1> & deriv)
-{
+	dx(x, y, z) = f(x, y, z) * dx(f(x, y, z))
+	dy(x, y, z) = f(x, y, z) * dy(f(x, y, z))
+
+	dx_dx(x, y, z) = dx(f(x, y, z))^2 + f(x, y, z) * dx_dx(f(x, y, z))
+	dx_dy(x, y, z) = dy(f(x, y, z)) * dx(f(x, y, z)) + f(x, y, z) * dx_dy(f(x, y, z))
+
+	*/
+
 	double a, dAdT, dAdV0, dAdV1;
 	evalAccelInit(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
-	error = a - accelerationLimit;
-
-	deriv[duration0] = dAdT;
-	deriv[duration1] = 0;
-	deriv[vel1X] = dAdV1;
-}
-
-void evalConstraintSecondDeriv1(const Trajectory & traj, Matrix<double, numVars, numVars> & secondDeriv)
-{
 	double sTT, sTV0, sTV1;
 	evalAccelSecondDerivInit(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], sTT, sTV0, sTV1);
 
 	secondDeriv.setZero();
-	secondDeriv(duration0, duration0) = sTT;
-	secondDeriv(duration0, vel1X) = sTV1;
-	secondDeriv(vel1X, duration0) = sTV1;
+	secondDeriv(duration0, duration0) = sqr(dAdT) + a * sTT;
+	secondDeriv(duration0, vel1X) = secondDeriv(vel1X, duration0) = dAdT * dAdV1 + a * sTV1;
 }
 
-void evalConstraint2(const Trajectory & traj, double & error, Matrix<double, numVars, 1> & deriv)
+void evalConstraint1(const Trajectory2 & traj, double & error, Matrix<double, numVars, 1> & deriv)
 {
 	double a, dAdT, dAdV0, dAdV1;
 	evalAccelFinal(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
-	error = -a - accelerationLimit;
+	error = (sqr(a) - sqr(accelerationLimit)) / 2.0;
 
-	deriv[duration0] = -dAdT;
+	deriv[duration0] = a * dAdT;
 	deriv[duration1] = 0;
-	deriv[vel1X] = -dAdV1;
+	deriv[vel1X] = a * dAdV1;
 }
 
-void evalConstraintSecondDeriv2(const Trajectory & traj, Matrix<double, numVars, numVars> & secondDeriv)
-{
-	double sTT, sTV0, sTV1;
-	evalAccelSecondDerivFinal(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], sTT, sTV0, sTV1);
-
-	secondDeriv.setZero();
-	secondDeriv(duration0, duration0) = -sTT;
-	secondDeriv(duration0, vel1X) = -sTV1;
-	secondDeriv(vel1X, duration0) = -sTV1;
-}
-
-void evalConstraint3(const Trajectory & traj, double & error, Matrix<double, numVars, 1> & deriv)
+void evalConstraintSecondDeriv1(const Trajectory2 & traj, Matrix<double, numVars, numVars> & secondDeriv)
 {
 	double a, dAdT, dAdV0, dAdV1;
 	evalAccelFinal(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], a, dAdT, dAdV0, dAdV1);
 
-	error = a - accelerationLimit;
-
-	deriv[duration0] = dAdT;
-	deriv[duration1] = 0;
-	deriv[vel1X] = dAdV1;
-}
-
-void evalConstraintSecondDeriv3(const Trajectory & traj, Matrix<double, numVars, numVars> & secondDeriv)
-{
 	double sTT, sTV0, sTV1;
 	evalAccelSecondDerivFinal(traj.var[pos0X], traj.var[vel0X], traj.var[pos1X], traj.var[vel1X], traj.var[duration0], sTT, sTV0, sTV1);
 
 	secondDeriv.setZero();
-	secondDeriv(duration0, duration0) = sTT;
-	secondDeriv(duration0, vel1X) = sTV1;
-	secondDeriv(vel1X, duration0) = sTV1;
+	secondDeriv(duration0, duration0) = sqr(dAdT) + a * sTT;
+	secondDeriv(duration0, vel1X) = secondDeriv(vel1X, duration0) = dAdT * dAdV1 + a * sTV1;
 }
 
-void evalConstraint4(const Trajectory & traj, double & error, Matrix<double, numVars, 1> & deriv)
+void evalConstraint2(const Trajectory2 & traj, double & error, Matrix<double, numVars, 1> & deriv)
 {
 	double a, dAdT, dAdV0, dAdV1;
 	evalAccelInit(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
 
-	error = -a - accelerationLimit;
+	error = (sqr(a) - sqr(accelerationLimit)) / 2.0;
 
 	deriv[duration0] = 0;
-	deriv[duration1] = -dAdT;
-	deriv[vel1X] = -dAdV0;
+	deriv[duration1] = a * dAdT;
+	deriv[vel1X] = a * dAdV0;
 }
 
-void evalConstraintSecondDeriv4(const Trajectory & traj, Matrix<double, numVars, numVars> & secondDeriv)
-{
-	double sTT, sTV0, sTV1;
-	evalAccelSecondDerivInit(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], sTT, sTV0, sTV1);
-
-	secondDeriv.setZero();
-	secondDeriv(duration1, duration1) = -sTT;
-	secondDeriv(duration1, vel1X) = -sTV0;
-	secondDeriv(vel1X, duration1) = -sTV0;
-}
-
-void evalConstraint5(const Trajectory & traj, double & error, Matrix<double, numVars, 1> & deriv)
+void evalConstraintSecondDeriv2(const Trajectory2 & traj, Matrix<double, numVars, numVars> & secondDeriv)
 {
 	double a, dAdT, dAdV0, dAdV1;
 	evalAccelInit(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
 
-	error = a - accelerationLimit;
-
-	deriv[duration0] = 0;
-	deriv[duration1] = dAdT;
-	deriv[vel1X] = dAdV0;
-}
-
-void evalConstraintSecondDeriv5(const Trajectory & traj, Matrix<double, numVars, numVars> & secondDeriv)
-{
 	double sTT, sTV0, sTV1;
 	evalAccelSecondDerivInit(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], sTT, sTV0, sTV1);
 
 	secondDeriv.setZero();
-	secondDeriv(duration1, duration1) = sTT;
-	secondDeriv(duration1, vel1X) = sTV0;
-	secondDeriv(vel1X, duration1) = sTV0;
+	secondDeriv(duration1, duration1) = sqr(dAdT) + a * sTT;
+	secondDeriv(duration1, vel1X) = secondDeriv(vel1X, duration1) = dAdT * dAdV0 + a * sTV0;
 }
 
-void evalConstraint6(const Trajectory & traj, double & error, Matrix<double, numVars, 1> & deriv)
+void evalConstraint3(const Trajectory2 & traj, double & error, Matrix<double, numVars, 1> & deriv)
 {
 	double a, dAdT, dAdV0, dAdV1;
 	evalAccelFinal(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
 
-	error = -a - accelerationLimit;
+	error = (sqr(a) - sqr(accelerationLimit)) / 2.0;
 
 	deriv[duration0] = 0;
-	deriv[duration1] = -dAdT;
-	deriv[vel1X] = -dAdV0;
+	deriv[duration1] = a * dAdT;
+	deriv[vel1X] = a * dAdV0;
 }
 
-void evalConstraintSecondDeriv6(const Trajectory & traj, Matrix<double, numVars, numVars> & secondDeriv)
-{
-	double sTT, sTV0, sTV1;
-	evalAccelSecondDerivFinal(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], sTT, sTV0, sTV1);
-
-	secondDeriv.setZero();
-	secondDeriv(duration1, duration1) = -sTT;
-	secondDeriv(duration1, vel1X) = -sTV0;
-	secondDeriv(vel1X, duration1) = -sTV0;
-}
-
-void evalConstraint7(const Trajectory & traj, double & error, Matrix<double, numVars, 1> & deriv)
+void evalConstraintSecondDeriv3(const Trajectory2 & traj, Matrix<double, numVars, numVars> & secondDeriv)
 {
 	double a, dAdT, dAdV0, dAdV1;
 	evalAccelFinal(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], a, dAdT, dAdV0, dAdV1);
 
-	error = a - accelerationLimit;
-
-	deriv[duration0] = 0;
-	deriv[duration1] = dAdT;
-	deriv[vel1X] = dAdV0;
-}
-
-void evalConstraintSecondDeriv7(const Trajectory & traj, Matrix<double, numVars, numVars> & secondDeriv)
-{
 	double sTT, sTV0, sTV1;
 	evalAccelSecondDerivFinal(traj.var[pos1X], traj.var[vel1X], traj.var[pos2X], traj.var[vel2X], traj.var[duration1], sTT, sTV0, sTV1);
 
 	secondDeriv.setZero();
-	secondDeriv(duration1, duration1) = sTT;
-	secondDeriv(duration1, vel1X) = sTV0;
-	secondDeriv(vel1X, duration1) = sTV0;
+	secondDeriv(duration1, duration1) = sqr(dAdT) + a * sTT;
+	secondDeriv(duration1, vel1X) = secondDeriv(vel1X, duration1) = dAdT * dAdV0 + a * sTV0;
 }
 
-void evalConstraints(const Trajectory & traj, Matrix<double, numConstraints, 1> & error, Matrix<double, numConstraints, numVars> & deriv)
+void evalConstraints(const Trajectory2 & traj, Matrix<double, numConstraints, 1> & error, Matrix<double, numConstraints, numVars> & deriv)
 {
 	for (size_t i = 0; i < numConstraints; ++i)
 	{
@@ -626,7 +515,7 @@ void evalConstraints(const Trajectory & traj, Matrix<double, numConstraints, 1> 
 	}
 }
 
-void moveTowardFeasibility(Trajectory & traj)
+void moveTowardFeasibility(Trajectory2 & traj)
 {
 	// Collect violated constraints
 
@@ -701,7 +590,7 @@ void moveTowardFeasibility(Trajectory & traj)
 		traj.var[i] += dX[i];
 }
 
-void trajectoryStep(const Trajectory & trajOriginal, const Matrix<double, numVars + numConstraints, 1> & dir, double scale, Trajectory & trajNew)
+void trajectoryStep(const Trajectory2 & trajOriginal, const Matrix<double, numVars + numConstraints, 1> & dir, double scale, Trajectory2 & trajNew)
 {
 	const size_t c = numVars + numConstraints;
 
@@ -710,13 +599,13 @@ void trajectoryStep(const Trajectory & trajOriginal, const Matrix<double, numVar
 		trajNew.var[i] = trajOriginal.var[i] + dir(i) * scale;
 	}
 
-	for (size_t i = c; i < M; ++i)
+	for (size_t i = c; i < M2; ++i)
 	{
 		trajNew.var[i] = trajOriginal.var[i];
 	}
 }
 
-bool constraintsSatisfied(const Trajectory & traj)
+bool constraintsSatisfied(const Trajectory2 & traj)
 {
 	for (size_t i = 0; i < numConstraints; ++i)
 	{
@@ -731,7 +620,7 @@ bool constraintsSatisfied(const Trajectory & traj)
 	return true;
 }
 
-void residual(const Trajectory & traj, double perturbation, Matrix<double, numVars + numConstraints, 1> & r)
+void residual(const Trajectory2 & traj, double perturbation, Matrix<double, numVars + numConstraints, 1> & r)
 {
 	const size_t c = numVars + numConstraints;
 
@@ -763,7 +652,7 @@ void residual(const Trajectory & traj, double perturbation, Matrix<double, numVa
 	}
 }
 
-double residualNorm(const Trajectory & traj, double perturbation)
+double residualNorm(const Trajectory2 & traj, double perturbation)
 {
 	Matrix<double, numVars + numConstraints, 1> r;
 
@@ -772,7 +661,7 @@ double residualNorm(const Trajectory & traj, double perturbation)
 	return r.squaredNorm();
 }
 
-double surrogateDualityGap(const Trajectory & traj)
+double surrogateDualityGap(const Trajectory2 & traj)
 {
 	double mu = 0;
 
@@ -788,9 +677,9 @@ double surrogateDualityGap(const Trajectory & traj)
 	return mu;
 }
 
-void moveInteriorPoint(Trajectory & traj)
+void moveInteriorPoint(Trajectory2 & traj)
 {
-	double perturbation = surrogateDualityGap(traj) / (numConstraints * 10.0);
+	double perturbation = 0.01; // surrogateDualityGap(traj) / (numConstraints * 10.0);
 
 	const size_t c = numVars + numConstraints;
 
@@ -899,7 +788,7 @@ void moveInteriorPoint(Trajectory & traj)
 
 	for (size_t i = 0; i < 100; ++i)
 	{
-		Trajectory trajNew;
+		Trajectory2 trajNew;
 		trajectoryStep(traj, d, s, trajNew);
 
 		if (constraintsSatisfied(trajNew))
@@ -914,7 +803,7 @@ void moveInteriorPoint(Trajectory & traj)
 
 	for (size_t i = 0; i < 100; ++i)
 	{
-		Trajectory trajNew;
+		Trajectory2 trajNew;
 		trajectoryStep(traj, d, s, trajNew);
 
 		double residualNormNew = residualNorm(trajNew, perturbation);
@@ -933,10 +822,28 @@ void moveInteriorPoint(Trajectory & traj)
 		traj.var[i] += d(i);
 }
 
-void printConstraints(const Trajectory & traj)
+void printConstraints(const Trajectory2 & traj)
 {
 	Matrix<double, numVars, 1> obj;
 	obj << 0, -1, -1;
+
+	debug_printf("[");
+	for (size_t i = 0; i < numVars; ++i)
+		debug_printf("%s%s", (i > 0) ? " " : "", varName[i]);
+
+	debug_printf("] [");
+	for (size_t i = 0; i < numVars; ++i)
+	{
+		debug_printf("%s[", (i > 0) ? " " : "");
+
+		for (size_t j = 0; j < numVars; ++j)
+		{
+			debug_printf("%s%s/%s", (j > 0) ? " " : "", varName[i], varName[j]);
+		}
+
+		debug_printf("]");
+	}
+	debug_printf("]\n");
 
 	for (size_t i = 0; i < numConstraints; ++i)
 	{
@@ -958,7 +865,7 @@ void printConstraints(const Trajectory & traj)
 		}
 
 		debug_printf("] second=[");
-
+		
 		for (size_t j = 0; j < numVars; ++j)
 		{
 			debug_printf("%s[", (j > 0) ? " " : "");
@@ -975,7 +882,7 @@ void printConstraints(const Trajectory & traj)
 	}
 }
 
-void printState(const Trajectory & traj)
+void printState(const Trajectory2 & traj)
 {
 	debug_printf("\nNode 0: pos=%g vel=%g\n", traj.var[pos0X], traj.var[vel0X]);
 	debug_printf("Node 1: pos=%g vel=%g\n", traj.var[pos1X], traj.var[vel1X]);
@@ -993,7 +900,7 @@ void printState(const Trajectory & traj)
 	printConstraints(traj);
 }
 
-void plotAcceleration(const Trajectory & traj)
+void plotAcceleration(const Trajectory2 & traj)
 {
 	double s = 1.0 / (2.0 * accelerationLimit);
 
@@ -1068,7 +975,7 @@ static void drawSegment(double x0, double v0, double x1, double v1, double h, do
 	glEnd();
 }
 
-void plotTrajectory(const Trajectory & traj)
+void plotTrajectory(const Trajectory2 & traj)
 {
 	glColor3d(0.1, 0.1, 0.1);
 	glBegin(GL_QUADS);

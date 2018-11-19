@@ -8,6 +8,7 @@
 #include "fixptpath.h"
 #include "onedpath.h"
 #include "onedpath_ip.h"
+#include "onedpath2_ip.h"
 
 //----------------------------------------------------------------------------
 
@@ -41,15 +42,17 @@ static int g_imageIndex = 0;
 static FixPointPath g_problem1;
 static OneDPath g_problem2;
 static OneDPathInteriorPoint g_problem3;
+static OneDPath2InteriorPoint g_problem4;
 
 static Problem * g_problems[] =
 {
 	&g_problem1,
 	&g_problem2,
 	&g_problem3,
+	&g_problem4,
 };
 
-static Problem * g_problemCur = &g_problem3;
+static Problem * g_problemCur = &g_problem4;
 
 //----------------------------------------------------------------------------
 

@@ -72,6 +72,7 @@
   <ItemGroup>
     <ClCompile Include="fixptpath.cpp" />
     <ClCompile Include="onedpath.cpp" />
+    <ClCompile Include="onedpath2_ip.cpp" />
     <ClCompile Include="onedpath_ip.cpp" />
     <ClCompile Include="rocket_path.cpp" />
   </ItemGroup>
@@ -80,6 +81,7 @@
     <ClInclude Include="fixptpath.h" />
     <ClInclude Include="libs\vec\vec.h" />
     <ClInclude Include="onedpath.h" />
+    <ClInclude Include="onedpath2_ip.h" />
     <ClInclude Include="onedpath_ip.h" />
     <ClInclude Include="problem.h" />
   </ItemGroup>

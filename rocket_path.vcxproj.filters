@@ -23,6 +23,9 @@
     <ClCompile Include="onedpath_ip.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="onedpath2_ip.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libs\vec\vec.h">
@@ -41,6 +44,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="onedpath_ip.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="onedpath2_ip.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
