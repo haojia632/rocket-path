@@ -19,6 +19,7 @@ const double pi = 3.1415926535897932384626433832795;
 
 //----------------------------------------------------------------------------
 
+static unsigned makeDisc();
 static void onDraw();
 static void onMouseButton(int button, int state, int x, int y);
 static void onMouseMove(int x, int y);
@@ -27,7 +28,7 @@ static void onSpecialKey(int key, int x, int y);
 
 //----------------------------------------------------------------------------
 
-static unsigned g_disc_list = 0;
+static unsigned g_discList = 0;
 
 static FixPointPath g_problem1;
 static OneDPath g_problem2;
@@ -42,17 +43,12 @@ static Problem * g_problems[] =
 	&g_problem4,
 };
 
-static Problem * g_problemCur = &g_problem4;
+static Problem * g_problemCur = &g_problem3;
 
 //----------------------------------------------------------------------------
 
 int main(int argc, char * argv[])
 {
-	for (Problem * problem : g_problems)
-	{
-		problem->init();
-	}
-
 	glutInit(&argc, argv);
 	glutInitWindowPosition(16, 16);
 	glutInitWindowSize(kInitWindowSizeX, kInitWindowSizeY);
@@ -64,9 +60,40 @@ int main(int argc, char * argv[])
 	glutKeyboardFunc(onKey);
 	glutSpecialFunc(onSpecialKey);
 
+	g_discList = makeDisc();
+
+	for (Problem * problem : g_problems)
+	{
+		problem->init();
+	}
+
 	glutMainLoop();
 
 	return 0;
+}
+
+unsigned makeDisc()
+{
+	unsigned discList = glGenLists(1);
+	glNewList(discList, GL_COMPILE);
+	const int half_verts = 16;
+	const double angle_inc = pi / half_verts;
+	double angle = angle_inc / 2.0;
+	glBegin(GL_TRIANGLE_STRIP);
+	for (int i = 0; i < half_verts; ++i)
+	{
+		double x = cos(angle);
+		double y = sin(angle);
+
+		glVertex2d(x, -y);
+		glVertex2d(x,  y);
+
+		angle += angle_inc;
+	}
+	glEnd();
+	glEndList();
+
+	return discList;
 }
 
 void onDraw()
@@ -120,7 +147,7 @@ void onSpecialKey(int key, int x, int y)
 
 void drawDisc()
 {
-	glCallList(g_disc_list);
+	glCallList(g_discList);
 }
 
 int windowSizeX()
