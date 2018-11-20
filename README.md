@@ -5,8 +5,8 @@ Attempts to learn how to do optimal trajectory planning.
 
 This program was built with Microsoft Visual Studio Community 2015. It uses these libraries:
 
-  * [FreeGLUT] (http://freeglut.sourceforge.net/) for hopefully relatively portable window management
-  * [Eigen] (http://eigen.tuxfamily.org/index.php?title=Main_Page) for linear algebra
+  * [FreeGLUT](http://freeglut.sourceforge.net/) for hopefully relatively portable window management
+  * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page) for linear algebra
 
 There are multiple experiments, accessible via the F1-F4 hotkeys. The first one (F1) is an attempt to make a two-cubic trajectory that passes through three points in two dimensions. I don't think it does much at the moment other than plot accelerations and let you move around the points by clicking and dragging them with the mouse.
 
