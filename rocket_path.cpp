@@ -13,7 +13,7 @@
 
 const int kInitWindowSizeX = 800;
 const int kInitWindowSizeY = 800;
-const char * kWindowName = "Rocket Path";
+const char * kWindowName = "Constrained Trajectory Optimization";
 
 const double pi = 3.1415926535897932384626433832795;
 

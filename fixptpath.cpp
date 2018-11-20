@@ -144,7 +144,7 @@ void FixPointPath::init()
 
 void FixPointPath::onActivate()
 {
-	printf("2D path\n");
+	printf("\n2D path\n");
 }
 
 void FixPointPath::onKey(unsigned char key)

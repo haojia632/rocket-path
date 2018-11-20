@@ -139,7 +139,21 @@ void OneDPath::init()
 
 void OneDPath::onActivate()
 {
-	printf("1D path\n");
+	printf(
+		"\n1D path\n\n"
+		"Space      Move toward feasibility\n"
+		"I          Reinitialize\n"
+		"S          Print current state\n"
+		"Z          Move in constrained direction\n"
+		"1          Fix up constraints at segment 0 start\n"
+		"2          Fix up constraints at segment 0 end\n"
+		"3          Fix up constraints at segment 1 start\n"
+		"4          Fix up constraints at segment 1 end\n"
+		"Home/End   Increment/Decrement segment 0 duration\n"
+		"PgUp/PgDn  Increment/Decrement segment 1 duration\n"
+		"Right/Left Increment/Decrement midpoint velocity\n"
+		"Up/Down    Increment/Decrement midpoint position\n"
+	);
 }
 
 void OneDPath::onKey(unsigned char key)

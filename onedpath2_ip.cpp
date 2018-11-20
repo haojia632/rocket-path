@@ -697,7 +697,7 @@ double surrogateDualityGap(const Trajectory2 & traj)
 
 void moveInteriorPoint(Trajectory2 & traj)
 {
-	double perturbation = 0.01; // surrogateDualityGap(traj) / (numConstraints * 10.0);
+	double perturbation = surrogateDualityGap(traj) / (numConstraints * 10.0);
 
 	const size_t c = numVars + numConstraints;
 
