@@ -67,6 +67,8 @@ int main(int argc, char * argv[])
 		problem->init();
 	}
 
+	g_problemCur->onActivate();
+
 	glutMainLoop();
 
 	return 0;
@@ -142,7 +144,21 @@ void onKey(unsigned char key, int x, int y)
 void onSpecialKey(int key, int x, int y)
 {
 	g_problemCur->onMouseMove(x, y);
-	g_problemCur->onSpecialKey(key);
+
+	if (key >= GLUT_KEY_F1 && key < GLUT_KEY_F1 + sizeof(g_problems) / sizeof(Problem *))
+	{
+		Problem * problem = g_problems[key - GLUT_KEY_F1];
+		if (problem != g_problemCur)
+		{
+			g_problemCur = problem;
+			g_problemCur->onActivate();
+			repaint();
+		}
+	}
+	else
+	{
+		g_problemCur->onSpecialKey(key);
+	}
 }
 
 void drawDisc()

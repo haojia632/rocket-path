@@ -137,6 +137,11 @@ void OneDPath::init()
 	g_trajectory.var[duration1] = 3.4641;
 }
 
+void OneDPath::onActivate()
+{
+	printf("1D path\n");
+}
+
 void OneDPath::onKey(unsigned char key)
 {
 	switch (key)

@@ -7,6 +7,7 @@ struct FixPointPath : public Problem
 	FixPointPath();
 	~FixPointPath() override;
 	void init() override;
+	void onActivate() override;
 	void onKey(unsigned char) override;
 	void onSpecialKey(int) override;
 	void onDraw() override;

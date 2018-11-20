@@ -4,6 +4,7 @@ struct Problem
 {
 	virtual ~Problem() {}
 	virtual void init() = 0;
+	virtual void onActivate() = 0;
 	virtual void onKey(unsigned char) = 0;
 	virtual void onSpecialKey(int) = 0;
 	virtual void onDraw() = 0;

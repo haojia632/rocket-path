@@ -142,6 +142,11 @@ void FixPointPath::init()
 	g_selectedNode = numNodes;
 }
 
+void FixPointPath::onActivate()
+{
+	printf("2D path\n");
+}
+
 void FixPointPath::onKey(unsigned char key)
 {
 	switch (key)

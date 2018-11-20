@@ -198,6 +198,20 @@ void OneDPath2InteriorPoint::init()
 	initDefault(g_trajectory);
 }
 
+void OneDPath2InteriorPoint::onActivate()
+{
+	printf(
+		"\n1D path: Interior point with squared distance constraints\n\n"
+		"Space      Move toward feasibility\n"
+		"I          Reinitialize\n"
+		"N          Take an interior-point step\n"
+		"S          Print current state\n"
+		"Home/End   Increment/Decrement segment 0 duration\n"
+		"PgUp/PgDn  Increment/Decrement segment 1 duration\n"
+		"Right/Left Increment/Decrement midpoint velocity\n"
+		"Up/Down    Increment/Decrement midpoint position\n");
+}
+
 void OneDPath2InteriorPoint::onKey(unsigned char key)
 {
 	switch (key)
